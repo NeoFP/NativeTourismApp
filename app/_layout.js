@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeProvider, useTheme } from '../utils/ThemeContext';
 import { Pressable } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 function TabsNavigator() {
   const { theme, isDark, toggleTheme } = useTheme();
@@ -78,8 +79,10 @@ function TabsNavigator() {
 
 export default function AppLayout() {
   return (
-    <ThemeProvider>
-      <TabsNavigator />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <TabsNavigator />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 } 

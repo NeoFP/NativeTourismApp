@@ -6,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from '../utils/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
+import { BarChart, PieChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
 
@@ -40,12 +41,6 @@ export default function Index() {
     },
   ];
 
-  const recentActivities = [
-    { id: '1', title: 'New Wi-Fi router installed', time: '2 hours ago', icon: 'wifi' },
-    { id: '2', title: 'Restaurant menu updated', time: '5 hours ago', icon: 'book-open' },
-    { id: '3', title: 'Room 304 maintenance', time: '1 day ago', icon: 'tool' },
-  ];
-
   const quickActions = [
     { 
       id: '1', 
@@ -62,6 +57,60 @@ export default function Index() {
       onPress: () => navigation.navigate('solutions')
     },
   ];
+
+  const sentimentData = {
+    positive: 142,
+    negative: 34,
+    neutral: 42,
+  };
+
+  const pieChartData = [
+    {
+      name: "Positive",
+      population: 65.1,
+      color: "#10B981",
+      legendFontColor: theme.text,
+      legendFontSize: 12,
+    },
+    {
+      name: "Negative",
+      population: 15.6,
+      color: "#EF4444",
+      legendFontColor: theme.text,
+      legendFontSize: 12,
+    },
+    {
+      name: "Neutral",
+      population: 19.3,
+      color: "#F59E0B",
+      legendFontColor: theme.text,
+      legendFontSize: 12,
+    },
+  ];
+
+  const barChartData = {
+    labels: ["Positive", "Negative", "Neutral"],
+    datasets: [
+      {
+        data: [142, 34, 42],
+      },
+    ],
+  };
+
+  const chartConfig = {
+    backgroundColor: 'transparent',
+    backgroundGradientFrom: theme.background,
+    backgroundGradientTo: theme.background,
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+    labelColor: (opacity = 1) => theme.text,
+    style: {
+      borderRadius: 16,
+    },
+    propsForLabels: {
+      fontSize: 12,
+    },
+  };
 
   const styles = StyleSheet.create({
     container: {
@@ -125,38 +174,6 @@ export default function Index() {
       marginTop: 24,
       marginBottom: 16,
     },
-    activityCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      marginBottom: 12,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)',
-    },
-    activityIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: `${theme.primary}20`,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 12,
-    },
-    activityInfo: {
-      flex: 1,
-    },
-    activityTitle: {
-      fontSize: 16,
-      fontWeight: '500',
-      color: theme.text,
-      marginBottom: 4,
-    },
-    activityTime: {
-      fontSize: 14,
-      color: theme.textSecondary,
-    },
     quickActionsContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -179,6 +196,58 @@ export default function Index() {
       color: theme.text,
       textAlign: 'center',
     },
+    chartContainer: {
+      marginBottom: 24,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    chartBlur: {
+      overflow: 'hidden',
+      borderRadius: 16,
+    },
+    chartGradient: {
+      padding: 20,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    chartHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    chartTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    chartLegend: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    legendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginLeft: 16,
+    },
+    legendDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      marginRight: 6,
+    },
+    legendText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    chartsWrapper: {
+      alignItems: 'center',
+    },
+    chart: {
+      marginVertical: 8,
+      borderRadius: 16,
+    },
   });
 
   const renderQuickAction = (action) => (
@@ -199,6 +268,65 @@ export default function Index() {
         <Text style={styles.quickActionTitle}>{action.title}</Text>
       </Animated.View>
     </TouchableOpacity>
+  );
+
+  const renderSentimentAnalysis = () => (
+    <>
+      <Text style={styles.sectionTitle}>Sentiment Analysis</Text>
+      <View style={styles.chartContainer}>
+        <BlurView 
+          intensity={isDark ? 20 : 60} 
+          tint={isDark ? "dark" : "light"} 
+          style={styles.chartBlur}
+        >
+          <LinearGradient
+            colors={[
+              isDark ? "rgba(99, 102, 241, 0.1)" : "rgba(99, 102, 241, 0.05)",
+              isDark ? "rgba(99, 102, 241, 0.05)" : "rgba(99, 102, 241, 0.02)",
+            ]}
+            style={styles.chartGradient}
+          >
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>Distribution</Text>
+              <View style={styles.chartLegend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
+                  <Text style={styles.legendText}>Positive</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+                  <Text style={styles.legendText}>Negative</Text>
+                </View>
+              </View>
+            </View>
+            
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.chartsWrapper}>
+                <BarChart
+                  data={barChartData}
+                  width={width - 80}
+                  height={220}
+                  chartConfig={chartConfig}
+                  style={styles.chart}
+                  showValuesOnTopOfBars
+                />
+                
+                <PieChart
+                  data={pieChartData}
+                  width={width - 80}
+                  height={220}
+                  chartConfig={chartConfig}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute
+                />
+              </View>
+            </ScrollView>
+          </LinearGradient>
+        </BlurView>
+      </View>
+    </>
   );
 
   return (
@@ -233,29 +361,12 @@ export default function Index() {
         ))}
       </View>
 
+      {renderSentimentAnalysis()}
+
       <Text style={styles.sectionTitle}>Quick Actions</Text>
       <View style={styles.quickActionsContainer}>
         {quickActions.map(renderQuickAction)}
       </View>
-
-      <Text style={styles.sectionTitle}>Recent Activities</Text>
-      {recentActivities.map((activity, index) => (
-        <Animated.View
-          key={activity.id}
-          entering={FadeInDown.duration(400).delay(index * 100)}
-        >
-          <View style={styles.activityCard}>
-            <View style={styles.activityIcon}>
-              <Feather name={activity.icon} size={20} color={theme.primary} />
-            </View>
-            <View style={styles.activityInfo}>
-              <Text style={styles.activityTitle}>{activity.title}</Text>
-              <Text style={styles.activityTime}>{activity.time}</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-          </View>
-        </Animated.View>
-      ))}
     </ScrollView>
   );
 }
