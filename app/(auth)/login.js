@@ -28,7 +28,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../../utils/ThemeContext';
 import { SvgXml } from 'react-native-svg';
-import balloonSvg from '../../assets/images/balloon';
 import airplaneSvg from '../../assets/images/airplane';
 import luggageSvg from '../../assets/images/luggage';
 import { Feather } from '@expo/vector-icons';
@@ -106,10 +105,21 @@ export default function Login() {
         entering={FadeInDown.duration(1000).springify()}
         style={styles.content}
       >
-        {/* Balloon Animation */}
-        <Animated.View style={[styles.balloonImage, balloonStyle]}>
-          <SvgXml xml={balloonSvg} width={150} height={150} />
-        </Animated.View>
+        {/* Replace balloon with Lottie */}
+        <View style={styles.lottieContainer}>
+          <LottieView
+            source={require('../../assets/animations/login-animation.json')}
+            autoPlay
+            loop
+            style={[
+              styles.loginAnimation,
+              Platform.OS === 'web' && styles.webLoginAnimation
+            ]}
+            resizeMode="contain"
+            renderMode={Platform.OS === 'web' ? 'svg' : 'automatic'}
+            cacheStrategy="strong"
+          />
+        </View>
 
         <View style={styles.header}>
           <View style={styles.titleContainer}>
@@ -353,9 +363,25 @@ const styles = StyleSheet.create({
     bottom: '10%',
     left: '5%',
   },
-  balloonImage: {
-    alignSelf: 'center',
+  lottieContainer: {
+    alignItems: 'center',
     marginBottom: 20,
+    overflow: 'hidden',
+    height: Platform.OS === 'web' ? 250 : 200,
+    width: '100%',
+    position: 'relative',
+  },
+  loginAnimation: {
+    width: 200,
+    height: 200,
+  },
+  webLoginAnimation: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    top: 0,
+    left: '50%',
+    transform: [{ translateX: -125 }],
   },
   modalContainer: {
     flex: 1,
