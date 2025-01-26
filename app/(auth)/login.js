@@ -27,9 +27,6 @@ import Animated, {
   FadeInUp
 } from 'react-native-reanimated';
 import { useTheme } from '../../utils/ThemeContext';
-import { SvgXml } from 'react-native-svg';
-import airplaneSvg from '../../assets/images/airplane';
-import luggageSvg from '../../assets/images/luggage';
 import { Feather } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 
@@ -85,21 +82,6 @@ export default function Login() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      {/* Background Illustrations */}
-      <Animated.View
-        entering={FadeInDown.duration(1000).delay(300)}
-        style={[styles.airplaneIcon, { opacity: 0.1 }]}
-      >
-        <SvgXml xml={airplaneSvg} width={60} height={60} />
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInDown.duration(1000).delay(500)}
-        style={[styles.luggageIcon, { opacity: 0.1 }]}
-      >
-        <SvgXml xml={luggageSvg} width={40} height={40} />
-      </Animated.View>
-
       {/* Main Content */}
       <Animated.View 
         entering={FadeInDown.duration(1000).springify()}
@@ -351,17 +333,6 @@ const styles = StyleSheet.create({
     marginTop: 24,
     fontSize: 14,
     opacity: 0.8,
-  },
-  airplaneIcon: {
-    position: 'absolute',
-    top: '10%',
-    right: '5%',
-    transform: [{ rotate: '-15deg' }],
-  },
-  luggageIcon: {
-    position: 'absolute',
-    bottom: '10%',
-    left: '5%',
   },
   lottieContainer: {
     alignItems: 'center',
