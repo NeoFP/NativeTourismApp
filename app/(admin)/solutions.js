@@ -4,7 +4,7 @@ import Animated, { FadeInLeft } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
-import { useTheme } from "../utils/ThemeContext";
+import { useTheme } from "../../utils/ThemeContext";
 
 const mockSolutions = [
   {
