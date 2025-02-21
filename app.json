@@ -5,6 +5,7 @@
       "expo-router"
     ],
     "name": "NativeTourismApp",
-    "slug": "NativeTourismApp"
+    "slug": "NativeTourismApp",
+    "newArchEnabled": true
   }
 }

@@ -1,22 +1,22 @@
-import { useState, useEffect } from 'react';
-import { 
-  View, 
-  TextInput, 
-  TouchableOpacity, 
-  Text, 
+import { useState, useEffect } from "react";
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
   StyleSheet,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
   Image,
-  Modal
-} from 'react-native';
-import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import Animated, { 
-  FadeInDown, 
+  Modal,
+} from "react-native";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import Animated, {
+  FadeInDown,
   FadeInRight,
   SlideInRight,
   withRepeat,
@@ -24,27 +24,35 @@ import Animated, {
   withTiming,
   useAnimatedStyle,
   useSharedValue,
-  FadeInUp
-} from 'react-native-reanimated';
-import { useTheme } from '../../utils/ThemeContext';
-import { Feather } from '@expo/vector-icons';
-import LottieView from 'lottie-react-native';
+  FadeInUp,
+} from "react-native-reanimated";
+import { useTheme } from "../../utils/ThemeContext";
+import { Feather } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
+import axios from "axios";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
+const API_URL = Platform.select({
+  android: "http://10.0.2.2:5001/api/auth",
+  ios: "http://localhost:5001/api/auth",
+  default: "http://localhost:5001/api/auth",
+});
 
 export default function Login() {
   const { theme, isDark } = useTheme();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showLoadingModal, setShowLoadingModal] = useState(false);
   const floatAnimation = useSharedValue(0);
+  const [error, setError] = useState("");
+  const [role, setRole] = useState("");
 
   useEffect(() => {
     floatAnimation.value = withRepeat(
       withSequence(
         withTiming(10, { duration: 2000 }),
-        withTiming(-10, { duration: 2000 }),
+        withTiming(-10, { duration: 2000 })
       ),
       -1,
       true
@@ -55,69 +63,120 @@ export default function Login() {
     transform: [{ translateY: floatAnimation.value }],
   }));
 
+  const validateInputs = () => {
+    if (!email) {
+      setError("Email is required");
+      return false;
+    }
+    if (!password) {
+      setError("Password is required");
+      return false;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setError("Please enter a valid email");
+      return false;
+    }
+    return true;
+  };
+
   const handleLogin = async () => {
+    setError("");
     setIsLoading(true);
     setShowLoadingModal(true);
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      if (email.includes('admin')) {
-        await AsyncStorage.setItem('userType', 'admin');
-        await AsyncStorage.setItem('token', 'your-token-here');
-        router.replace('/(admin)');
+      if (!validateInputs()) {
+        setIsLoading(false);
+        setShowLoadingModal(false);
+        return;
+      }
+
+      const response = await axios.post(`${API_URL}/login`, {
+        email,
+        password,
+      });
+
+      const { token, role, username } = response.data;
+      setRole(role);
+
+      await AsyncStorage.setItem("token", token);
+      await AsyncStorage.setItem("userType", role);
+      await AsyncStorage.setItem("username", username);
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      if (role === "admin") {
+        router.replace("/(admin)");
       } else {
-        await AsyncStorage.setItem('userType', 'user');
-        await AsyncStorage.setItem('token', 'your-token-here');
-        router.replace('/(user)');
+        router.replace("/(user)");
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
+      if (!error.response) {
+        setError("Network error - please check your connection");
+      } else if (error.response.status === 401) {
+        setError("Invalid email or password");
+      } else {
+        setError(
+          error.response?.data?.message || error.message || "Login failed"
+        );
+      }
+      setTimeout(() => setError(""), 3000);
     } finally {
       setIsLoading(false);
       setShowLoadingModal(false);
     }
   };
 
+  const ErrorMessage = () =>
+    error ? (
+      <Animated.Text
+        entering={FadeInDown.duration(400)}
+        style={styles.errorText}
+      >
+        {error}
+      </Animated.Text>
+    ) : null;
+
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      {/* Main Content */}
-      <Animated.View 
+      <Animated.View
         entering={FadeInDown.duration(1000).springify()}
         style={styles.content}
       >
-        {/* Replace balloon with Lottie */}
         <View style={styles.lottieContainer}>
           <LottieView
-            source={require('../../assets/animations/login-animation.json')}
+            source={require("../../assets/animations/login-animation.json")}
             autoPlay
             loop
             style={[
               styles.loginAnimation,
-              Platform.OS === 'web' && styles.webLoginAnimation
+              Platform.OS === "web" && styles.webLoginAnimation,
             ]}
             resizeMode="contain"
-            renderMode={Platform.OS === 'web' ? 'svg' : 'automatic'}
+            renderMode={Platform.OS === "web" ? "svg" : "automatic"}
             cacheStrategy="strong"
           />
         </View>
 
         <View style={styles.header}>
           <View style={styles.titleContainer}>
-            <Animated.Text 
+            <Animated.Text
               entering={SlideInRight.duration(800).delay(400)}
               style={[styles.welcomeText, { color: theme.textSecondary }]}
             >
               Welcome to
             </Animated.Text>
-            <Animated.Text 
+            <Animated.Text
               entering={SlideInRight.duration(800).delay(600)}
               style={[styles.title, { color: theme.text }]}
             >
               TravelEase
             </Animated.Text>
-            <Animated.Text 
+            <Animated.Text
               entering={FadeInRight.duration(800).delay(800)}
               style={[styles.subtitle, { color: theme.textSecondary }]}
             >
@@ -126,20 +185,26 @@ export default function Login() {
           </View>
         </View>
 
-        <Animated.View 
+        <Animated.View
           entering={FadeInDown.duration(1000).delay(1000)}
           style={styles.form}
         >
+          <ErrorMessage />
+
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
-            <View style={[
-              styles.inputWrapper, 
-              { 
-                backgroundColor: isDark ? theme.background : '#F9FAFB',
-                borderWidth: 1,
-                borderColor: theme.border
-              }
-            ]}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>
+              Email
+            </Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: isDark ? theme.background : "#F9FAFB",
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <Feather name="mail" size={20} color={theme.textSecondary} />
               <TextInput
                 style={[styles.input, { color: theme.text }]}
@@ -154,15 +219,19 @@ export default function Login() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Password</Text>
-            <View style={[
-              styles.inputWrapper, 
-              { 
-                backgroundColor: isDark ? theme.background : '#F9FAFB',
-                borderWidth: 1,
-                borderColor: theme.border
-              }
-            ]}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>
+              Password
+            </Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: isDark ? theme.background : "#F9FAFB",
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <Feather name="lock" size={20} color={theme.textSecondary} />
               <TextInput
                 style={[styles.input, { color: theme.text }]}
@@ -175,12 +244,9 @@ export default function Login() {
             </View>
           </View>
 
-          <TouchableOpacity 
-            style={[styles.button]}
-            onPress={handleLogin}
-          >
+          <TouchableOpacity style={[styles.button]} onPress={handleLogin}>
             <LinearGradient
-              colors={[theme.primary, '#818CF8']}
+              colors={[theme.primary, "#818CF8"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.buttonGradient}
@@ -196,7 +262,17 @@ export default function Login() {
             </LinearGradient>
           </TouchableOpacity>
 
-          <Animated.Text 
+          <TouchableOpacity
+            onPress={() => router.push("/register")}
+            style={styles.registerLink}
+          >
+            <Text style={[styles.registerText, { color: theme.textSecondary }]}>
+              Don't have an account?{" "}
+              <Text style={{ color: theme.primary }}>Sign Up</Text>
+            </Text>
+          </TouchableOpacity>
+
+          <Animated.Text
             entering={FadeInRight.duration(800).delay(1200)}
             style={[styles.footerText, { color: theme.textSecondary }]}
           >
@@ -205,35 +281,30 @@ export default function Login() {
         </Animated.View>
       </Animated.View>
 
-      {/* Loading Modal */}
-      <Modal
-        transparent
-        visible={showLoadingModal}
-        animationType="fade"
-      >
+      <Modal transparent visible={showLoadingModal} animationType="fade">
         <BlurView
           intensity={isDark ? 20 : 60}
           tint={isDark ? "dark" : "light"}
           style={styles.modalContainer}
         >
           <View style={styles.loadingContainer}>
-            {Platform.OS === 'web' ? (
+            {Platform.OS === "web" ? (
               <View style={styles.webLoadingContainer}>
                 <Feather name="loader" size={48} color={theme.primary} />
               </View>
             ) : (
               <LottieView
-                source={require('../../assets/animations/travel-loading.json')}
+                source={require("../../assets/animations/travel-loading.json")}
                 autoPlay
                 loop
                 style={styles.lottieAnimation}
               />
             )}
-            <Animated.Text 
+            <Animated.Text
               entering={FadeInUp.springify()}
               style={[styles.loadingText, { color: theme.text }]}
             >
-              {email.includes('admin') ? 'Preparing Admin Dashboard...' : 'Getting Ready for Your Journey...'}
+              "Signing you in..."
             </Animated.Text>
           </View>
         </BlurView>
@@ -245,37 +316,37 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 20,
   },
   content: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 40,
     marginTop: 20,
   },
   titleContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
   },
   welcomeText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   title: {
     fontSize: 36,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    textAlign: 'center',
-    maxWidth: '80%',
+    textAlign: "center",
+    maxWidth: "80%",
     lineHeight: 22,
   },
   form: {
@@ -286,12 +357,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginLeft: 4,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderRadius: 16,
     gap: 12,
@@ -304,9 +375,9 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 16,
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -315,53 +386,53 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   buttonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     padding: 16,
     borderRadius: 16,
-    width: '100%',
+    width: "100%",
   },
   footerText: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 24,
     fontSize: 14,
     opacity: 0.8,
   },
   lottieContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
-    overflow: 'hidden',
-    height: Platform.OS === 'web' ? 250 : 200,
-    width: '100%',
-    position: 'relative',
+    overflow: "hidden",
+    height: Platform.OS === "web" ? 250 : 200,
+    width: "100%",
+    position: "relative",
   },
   loginAnimation: {
     width: 200,
     height: 200,
   },
   webLoginAnimation: {
-    position: 'absolute',
+    position: "absolute",
     width: 250,
     height: 250,
     top: 0,
-    left: '50%',
+    left: "50%",
     transform: [{ translateX: -125 }],
   },
   modalContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
   },
   loadingContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 20,
     borderRadius: 20,
     gap: 20,
@@ -372,13 +443,27 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   webLoadingContainer: {
     width: 200,
     height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
-}); 
+  errorText: {
+    color: "#EF4444",
+    textAlign: "center",
+    marginBottom: 10,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  registerLink: {
+    marginTop: 20,
+    alignItems: "center",
+  },
+  registerText: {
+    fontSize: 14,
+  },
+});
