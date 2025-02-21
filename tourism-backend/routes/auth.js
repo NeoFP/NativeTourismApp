@@ -62,10 +62,32 @@ router.post('/login', async (req, res) => {
             { expiresIn: '24h' }
         );
 
+        // Custom welcome messages based on role
+        const welcomeMessage = user.role === 'admin' 
+            ? {
+                title: "Welcome back, Administrator!",
+                message: "Your dashboard is ready for management.",
+                features: [
+                    "Manage user accounts",
+                    "Monitor system activity",
+                    "View analytics"
+                ]
+            }
+            : {
+                title: `Welcome back, ${user.username}!`,
+                message: "Ready for your next adventure?",
+                features: [
+                    "Browse destinations",
+                    "Book your stay",
+                    "View your trips"
+                ]
+            };
+
         res.json({ 
             token,
             role: user.role,
-            username: user.username 
+            username: user.username,
+            welcome: welcomeMessage
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

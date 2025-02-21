@@ -47,6 +47,7 @@ export default function Login() {
   const floatAnimation = useSharedValue(0);
   const [error, setError] = useState("");
   const [role, setRole] = useState("");
+  const [welcomeMessage, setWelcomeMessage] = useState(null);
 
   useEffect(() => {
     floatAnimation.value = withRepeat(
@@ -96,8 +97,9 @@ export default function Login() {
         password,
       });
 
-      const { token, role, username } = response.data;
+      const { token, role, username, welcome } = response.data;
       setRole(role);
+      setWelcomeMessage(welcome);
 
       await AsyncStorage.setItem("token", token);
       await AsyncStorage.setItem("userType", role);
@@ -300,12 +302,33 @@ export default function Login() {
                 style={styles.lottieAnimation}
               />
             )}
+            {welcomeMessage && (
+              <Animated.Text
+                entering={FadeInUp.springify()}
+                style={[styles.loadingTitle, { color: theme.text }]}
+              >
+                {welcomeMessage.title}
+              </Animated.Text>
+            )}
             <Animated.Text
               entering={FadeInUp.springify()}
               style={[styles.loadingText, { color: theme.text }]}
             >
-              "Signing you in..."
+              {welcomeMessage ? welcomeMessage.message : "Signing you in..."}
             </Animated.Text>
+            {welcomeMessage && (
+              <View style={styles.featuresContainer}>
+                {welcomeMessage.features.map((feature, index) => (
+                  <Animated.Text
+                    key={index}
+                    entering={FadeInUp.springify().delay(200 * index)}
+                    style={[styles.featureText, { color: theme.textSecondary }]}
+                  >
+                    • {feature}
+                  </Animated.Text>
+                ))}
+              </View>
+            )}
           </View>
         </BlurView>
       </Modal>
@@ -465,5 +488,19 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: 14,
+  },
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  featuresContainer: {
+    marginTop: 16,
+    alignItems: "flex-start",
+  },
+  featureText: {
+    fontSize: 14,
+    marginVertical: 4,
   },
 });
