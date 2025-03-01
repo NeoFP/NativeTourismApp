@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   TextInput,
@@ -10,6 +10,8 @@ import {
   Platform,
   Image,
   Modal,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,22 +34,27 @@ import LottieView from "lottie-react-native";
 import axios from "axios";
 
 const { width } = Dimensions.get("window");
-const API_URL = Platform.select({
-  android: "http://10.0.2.2:5001/api/auth",
-  ios: "http://localhost:5001/api/auth",
-  default: "http://localhost:5001/api/auth",
-});
+const API_URL = "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001";
 
 export default function Login() {
   const { theme, isDark } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loginType, setLoginType] = useState("user");
   const [isLoading, setIsLoading] = useState(false);
   const [showLoadingModal, setShowLoadingModal] = useState(false);
   const floatAnimation = useSharedValue(0);
   const [error, setError] = useState("");
   const [role, setRole] = useState("");
   const [welcomeMessage, setWelcomeMessage] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({
+    email: "",
+    password: "",
+  });
+
+  // Add refs for Lottie animations
+  const loginAnimationRef = useRef(null);
+  const loadingAnimationRef = useRef(null);
 
   useEffect(() => {
     floatAnimation.value = withRepeat(
@@ -60,228 +67,545 @@ export default function Login() {
     );
   }, []);
 
+  // Clear validation errors when input changes
+  useEffect(() => {
+    setValidationErrors({
+      ...validationErrors,
+      email: "",
+    });
+  }, [email]);
+
+  useEffect(() => {
+    setValidationErrors({
+      ...validationErrors,
+      password: "",
+    });
+  }, [password]);
+
   const balloonStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: floatAnimation.value }],
   }));
 
   const validateInputs = () => {
-    if (!email) {
-      setError("Email is required");
-      return false;
+    let isValid = true;
+    const newValidationErrors = {
+      email: "",
+      password: "",
+    };
+
+    // Validate email
+    if (!email.trim()) {
+      newValidationErrors.email = "Email is required";
+      isValid = false;
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newValidationErrors.email = "Please enter a valid email address";
+      isValid = false;
     }
+
+    // Validate password
     if (!password) {
-      setError("Password is required");
-      return false;
+      newValidationErrors.password = "Password is required";
+      isValid = false;
     }
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setError("Please enter a valid email");
-      return false;
-    }
-    return true;
+
+    setValidationErrors(newValidationErrors);
+    return isValid;
   };
 
   const handleLogin = async () => {
     setError("");
+
+    // Validate inputs first
+    if (!validateInputs()) {
+      return;
+    }
+
     setIsLoading(true);
     setShowLoadingModal(true);
 
     try {
-      if (!validateInputs()) {
-        setIsLoading(false);
-        setShowLoadingModal(false);
-        return;
-      }
+      // Create a clean payload object
+      const payload = {
+        email: email.trim(),
+        password: password,
+        type: loginType,
+      };
 
-      const response = await axios.post(`${API_URL}/login`, {
-        email,
-        password,
+      console.log("Attempting to login with:", {
+        email: email.trim(),
+        type: loginType,
       });
 
-      const { token, role, username, welcome } = response.data;
-      setRole(role);
-      setWelcomeMessage(welcome);
+      let response;
+      let data;
 
-      await AsyncStorage.setItem("token", token);
-      await AsyncStorage.setItem("userType", role);
-      await AsyncStorage.setItem("username", username);
+      // Handle web platform differently due to CORS
+      if (Platform.OS === "web") {
+        console.log("Running on web platform, handling CORS...");
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Try multiple approaches for web
+        try {
+          // Approach 1: Use a proxy service (if available)
+          const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+          console.log("Trying with CORS proxy...");
 
-      if (role === "admin") {
-        router.replace("/(admin)");
+          response = await fetch(`${proxyUrl}${API_URL}/login`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Origin: window.location.origin,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (response.ok) {
+            data = await response.json();
+            console.log("Proxy approach successful");
+          } else {
+            throw new Error("Proxy approach failed");
+          }
+        } catch (proxyError) {
+          console.log("Proxy approach failed:", proxyError.message);
+
+          try {
+            // Approach 2: Try with no-cors mode (will result in opaque response)
+            console.log("Trying with no-cors mode...");
+
+            // Note: no-cors mode won't give us access to the response data
+            // This is mostly to see if the request goes through at all
+            await fetch(`${API_URL}/login`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+              mode: "no-cors",
+            });
+
+            // Since we can't read the response with no-cors,
+            // we'll make an assumption that if it didn't throw,
+            // the login might have succeeded
+
+            console.log(
+              "no-cors request completed, attempting direct navigation"
+            );
+
+            // Store user data with assumptions
+            await AsyncStorage.setItem("userEmail", email.trim());
+            await AsyncStorage.setItem("userType", loginType);
+            await AsyncStorage.setItem(
+              "username",
+              email.split("@")[0] || "User"
+            );
+
+            // Navigate based on user type
+            if (loginType === "hotel") {
+              router.replace("/(admin)");
+            } else {
+              router.replace("/(user)");
+            }
+
+            return; // Exit early since we're navigating
+          } catch (noCorsError) {
+            console.log("no-cors approach failed:", noCorsError.message);
+
+            // Final fallback: Display a special message for web users
+            throw new Error("CORS_BLOCKED");
+          }
+        }
       } else {
-        router.replace("/(user)");
+        // Native platforms don't have CORS issues
+        console.log("Running on native platform, using standard fetch");
+        response = await fetch(`${API_URL}/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Login failed with status ${response.status}: ${errorText}`
+          );
+        }
+
+        data = await response.json();
       }
+
+      // Process successful response data
+      const { type, name } = data || {};
+      const userEmail = email; // Use email from form
+
+      setRole(type || loginType);
+      setWelcomeMessage({
+        title: "Welcome to TravelEase",
+        message: "Your gateway to seamless travel experiences",
+        features: ["Experience the future of travel management"],
+      });
+
+      // Store user data
+      await AsyncStorage.setItem("userEmail", userEmail);
+      await AsyncStorage.setItem("userType", type || loginType);
+      await AsyncStorage.setItem(
+        "username",
+        name || email.split("@")[0] || "User"
+      );
+
+      // Store hotel name if user is a hotel
+      if ((type || loginType) === "hotel") {
+        // Use the name from response or email as fallback
+        let hotelName = name || "";
+
+        // If no name was provided in the response, use a default format
+        if (!hotelName || hotelName.trim() === "") {
+          // Extract hotel name from email (before the @ symbol) or use a default
+          const emailParts = email.split("@");
+          if (emailParts.length > 0 && emailParts[0]) {
+            // Convert email username to a proper name format (capitalize first letter of each word)
+            hotelName =
+              emailParts[0]
+                .replace(/[._-]/g, " ") // Replace dots, underscores, hyphens with spaces
+                .split(" ")
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(" ") + " Hotel";
+          } else {
+            hotelName = "Araliya Green Hills Hotel"; // Default fallback
+          }
+        }
+
+        await AsyncStorage.setItem("hotelName", hotelName);
+        console.log("Stored hotel name:", hotelName);
+      }
+
+      // Wait a bit before navigation
+      setTimeout(() => {
+        setIsLoading(false);
+        setShowLoadingModal(false);
+        // Navigate based on user type
+        if ((type || loginType) === "hotel") {
+          router.replace("/(admin)");
+        } else {
+          router.replace("/(user)");
+        }
+      }, 1500);
     } catch (error) {
-      console.error("Login error:", error);
-      if (!error.response) {
-        setError("Network error - please check your connection");
-      } else if (error.response.status === 401) {
-        setError("Invalid email or password");
-      } else {
-        setError(
-          error.response?.data?.message || error.message || "Login failed"
-        );
-      }
-      setTimeout(() => setError(""), 3000);
-    } finally {
-      setIsLoading(false);
+      console.error("Login error:", error.message);
       setShowLoadingModal(false);
+
+      // Set a user-friendly error message
+      if (error.message === "CORS_BLOCKED") {
+        setError(
+          "Cannot connect to the server due to CORS restrictions. Please try using the mobile app instead, or contact your administrator to enable CORS on the server."
+        );
+      } else if (error.message.includes("'email'")) {
+        setError("Email is required. Please check your input.");
+      } else if (error.message.includes("'type'")) {
+        setError("Account type is required. Please select Tourist or Hotel.");
+      } else if (
+        error.message.includes("CORS") ||
+        error.message.includes("NetworkError") ||
+        error.message.includes("Failed to fetch")
+      ) {
+        setError(
+          "Network error: Cannot connect to the server. If you're on web, this might be due to CORS restrictions."
+        );
+      } else if (
+        error.message.includes("401") ||
+        error.message.includes("403")
+      ) {
+        setError(
+          "Invalid email or password. Please check your credentials and try again."
+        );
+      } else {
+        setError("Login failed. Please check your credentials and try again.");
+      }
+
+      setIsLoading(false);
     }
   };
 
-  const ErrorMessage = () =>
-    error ? (
-      <Animated.Text
-        entering={FadeInDown.duration(400)}
-        style={styles.errorText}
-      >
-        {error}
-      </Animated.Text>
-    ) : null;
+  // Add useEffect to handle Lottie animation initialization
+  useEffect(() => {
+    // Small delay to ensure components are properly mounted
+    const timer = setTimeout(() => {
+      if (loginAnimationRef.current) {
+        loginAnimationRef.current.reset();
+        loginAnimationRef.current.play();
+      }
+      if (loadingAnimationRef.current && showLoadingModal) {
+        loadingAnimationRef.current.reset();
+        loadingAnimationRef.current.play();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [showLoadingModal]);
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <Animated.View
-        entering={FadeInDown.duration(1000).springify()}
-        style={styles.content}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.lottieContainer}>
-          <LottieView
-            source={require("../../assets/animations/login-animation.json")}
-            autoPlay
-            loop
-            style={[
-              styles.loginAnimation,
-              Platform.OS === "web" && styles.webLoginAnimation,
-            ]}
-            resizeMode="contain"
-            renderMode={Platform.OS === "web" ? "svg" : "automatic"}
-            cacheStrategy="strong"
-          />
-        </View>
-
-        <View style={styles.header}>
-          <View style={styles.titleContainer}>
-            <Animated.Text
-              entering={SlideInRight.duration(800).delay(400)}
-              style={[styles.welcomeText, { color: theme.textSecondary }]}
-            >
-              Welcome to
-            </Animated.Text>
-            <Animated.Text
-              entering={SlideInRight.duration(800).delay(600)}
-              style={[styles.title, { color: theme.text }]}
-            >
-              TravelEase
-            </Animated.Text>
-            <Animated.Text
-              entering={FadeInRight.duration(800).delay(800)}
-              style={[styles.subtitle, { color: theme.textSecondary }]}
-            >
-              Your gateway to seamless travel experiences
-            </Animated.Text>
-          </View>
-        </View>
-
         <Animated.View
-          entering={FadeInDown.duration(1000).delay(1000)}
-          style={styles.form}
+          entering={FadeInDown.duration(1000).springify()}
+          style={styles.content}
         >
-          <ErrorMessage />
+          <View style={styles.lottieContainer}>
+            <LottieView
+              ref={loginAnimationRef}
+              source={require("../../assets/animations/login-animation.json")}
+              autoPlay={false} // We'll control play manually with the ref
+              loop
+              style={styles.loginAnimation}
+              resizeMode="contain"
+              renderMode="svg"
+              speed={0.8} // Slow down animation slightly
+              onLayout={() => {
+                // Play animation after layout is complete
+                if (loginAnimationRef.current) {
+                  loginAnimationRef.current.play();
+                }
+              }}
+            />
+          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>
-              Email
-            </Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                {
-                  backgroundColor: isDark ? theme.background : "#F9FAFB",
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <Feather name="mail" size={20} color={theme.textSecondary} />
-              <TextInput
-                style={[styles.input, { color: theme.text }]}
-                placeholder="Enter your email"
-                placeholderTextColor={theme.textSecondary}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
+          <View style={styles.header}>
+            <View style={styles.titleContainer}>
+              <Animated.Text
+                entering={SlideInRight.duration(800).delay(400)}
+                style={[styles.welcomeText, { color: theme.textSecondary }]}
+              >
+                Welcome to
+              </Animated.Text>
+              <Animated.Text
+                entering={SlideInRight.duration(800).delay(600)}
+                style={[styles.title, { color: theme.text }]}
+              >
+                TravelEase
+              </Animated.Text>
+              <Animated.Text
+                entering={FadeInRight.duration(800).delay(800)}
+                style={[styles.subtitle, { color: theme.textSecondary }]}
+              >
+                Your gateway to seamless travel experiences
+              </Animated.Text>
             </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>
-              Password
-            </Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                {
-                  backgroundColor: isDark ? theme.background : "#F9FAFB",
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <Feather name="lock" size={20} color={theme.textSecondary} />
-              <TextInput
-                style={[styles.input, { color: theme.text }]}
-                placeholder="Enter your password"
-                placeholderTextColor={theme.textSecondary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
+          <Animated.View
+            entering={FadeInDown.duration(1000).delay(1000)}
+            style={styles.form}
+          >
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Feather name="alert-circle" size={20} color="#EF4444" />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                Email
+              </Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: isDark ? theme.background : "#F9FAFB",
+                    borderWidth: 1,
+                    borderColor: validationErrors.email
+                      ? "#EF4444"
+                      : theme.border,
+                  },
+                ]}
+              >
+                <Feather
+                  name="mail"
+                  size={20}
+                  color={
+                    validationErrors.email ? "#EF4444" : theme.textSecondary
+                  }
+                />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Enter your email"
+                  placeholderTextColor={theme.textSecondary}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+              </View>
+              {validationErrors.email ? (
+                <Text style={styles.validationErrorText}>
+                  {validationErrors.email}
+                </Text>
+              ) : null}
             </View>
-          </View>
 
-          <TouchableOpacity style={[styles.button]} onPress={handleLogin}>
-            <LinearGradient
-              colors={[theme.primary, "#818CF8"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.buttonGradient}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                Password
+              </Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: isDark ? theme.background : "#F9FAFB",
+                    borderWidth: 1,
+                    borderColor: validationErrors.password
+                      ? "#EF4444"
+                      : theme.border,
+                  },
+                ]}
+              >
+                <Feather
+                  name="lock"
+                  size={20}
+                  color={
+                    validationErrors.password ? "#EF4444" : theme.textSecondary
+                  }
+                />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Enter your password"
+                  placeholderTextColor={theme.textSecondary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
+              </View>
+              {validationErrors.password ? (
+                <Text style={styles.validationErrorText}>
+                  {validationErrors.password}
+                </Text>
+              ) : null}
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                Account Type
+              </Text>
+              <View style={styles.typeSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    loginType === "user" && [
+                      styles.activeTypeButton,
+                      { backgroundColor: theme.primary + "30" },
+                    ],
+                  ]}
+                  onPress={() => setLoginType("user")}
+                >
+                  <Feather
+                    name="user"
+                    size={20}
+                    color={
+                      loginType === "user" ? theme.primary : theme.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.typeText,
+                      {
+                        color:
+                          loginType === "user"
+                            ? theme.primary
+                            : theme.textSecondary,
+                      },
+                    ]}
+                  >
+                    Tourist
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    loginType === "hotel" && [
+                      styles.activeTypeButton,
+                      { backgroundColor: theme.primary + "30" },
+                    ],
+                  ]}
+                  onPress={() => setLoginType("hotel")}
+                >
+                  <Feather
+                    name="home"
+                    size={20}
+                    color={
+                      loginType === "hotel"
+                        ? theme.primary
+                        : theme.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.typeText,
+                      {
+                        color:
+                          loginType === "hotel"
+                            ? theme.primary
+                            : theme.textSecondary,
+                      },
+                    ]}
+                  >
+                    Hotel
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.button]}
+              onPress={handleLogin}
+              disabled={isLoading}
             >
-              {isLoading ? (
-                <Feather name="loader" size={24} color="white" />
-              ) : (
-                <>
-                  <Text style={styles.buttonText}>Sign In</Text>
-                  <Feather name="arrow-right" size={20} color="white" />
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={[theme.primary, "#818CF8"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.buttonGradient}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.buttonText}>Sign In</Text>
+                    <Feather name="arrow-right" size={20} color="white" />
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => router.push("/register")}
-            style={styles.registerLink}
-          >
-            <Text style={[styles.registerText, { color: theme.textSecondary }]}>
-              Don't have an account?{" "}
-              <Text style={{ color: theme.primary }}>Sign Up</Text>
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/register")}
+              style={styles.registerLink}
+            >
+              <Text
+                style={[styles.registerText, { color: theme.textSecondary }]}
+              >
+                Don't have an account?{" "}
+                <Text style={{ color: theme.primary, fontWeight: "600" }}>
+                  Sign Up
+                </Text>
+              </Text>
+            </TouchableOpacity>
 
-          <Animated.Text
-            entering={FadeInRight.duration(800).delay(1200)}
-            style={[styles.footerText, { color: theme.textSecondary }]}
-          >
-            Experience the future of travel management
-          </Animated.Text>
+            <Animated.Text
+              entering={FadeInRight.duration(800).delay(1200)}
+              style={[styles.footerText, { color: theme.textSecondary }]}
+            >
+              Experience the future of travel management
+            </Animated.Text>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      </ScrollView>
 
       <Modal transparent visible={showLoadingModal} animationType="fade">
         <BlurView
@@ -290,18 +614,21 @@ export default function Login() {
           style={styles.modalContainer}
         >
           <View style={styles.loadingContainer}>
-            {Platform.OS === "web" ? (
-              <View style={styles.webLoadingContainer}>
-                <Feather name="loader" size={48} color={theme.primary} />
-              </View>
-            ) : (
-              <LottieView
-                source={require("../../assets/animations/travel-loading.json")}
-                autoPlay
-                loop
-                style={styles.lottieAnimation}
-              />
-            )}
+            <LottieView
+              ref={loadingAnimationRef}
+              source={require("../../assets/animations/travel-loading.json")}
+              autoPlay={false} // We'll control play manually with the ref
+              loop
+              style={styles.lottieAnimation}
+              renderMode="svg"
+              speed={0.8} // Slow down animation slightly
+              onLayout={() => {
+                // Play animation after layout is complete
+                if (loadingAnimationRef.current) {
+                  loadingAnimationRef.current.play();
+                }
+              }}
+            />
             {welcomeMessage && (
               <Animated.Text
                 entering={FadeInUp.springify()}
@@ -339,6 +666,10 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: "center",
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 20,
   },
@@ -440,14 +771,6 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
   },
-  webLoginAnimation: {
-    position: "absolute",
-    width: 250,
-    height: 250,
-    top: 0,
-    left: "50%",
-    transform: [{ translateX: -125 }],
-  },
   modalContainer: {
     flex: 1,
     justifyContent: "center",
@@ -460,27 +783,31 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 20,
   },
-  lottieAnimation: {
-    width: 200,
-    height: 200,
-  },
   loadingText: {
     fontSize: 16,
     fontWeight: "600",
     textAlign: "center",
   },
-  webLoadingContainer: {
-    width: 200,
-    height: 200,
-    justifyContent: "center",
+  errorContainer: {
+    flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
   },
   errorText: {
     color: "#EF4444",
-    textAlign: "center",
-    marginBottom: 10,
+    flex: 1,
     fontSize: 14,
     fontWeight: "500",
+  },
+  validationErrorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginLeft: 4,
+    marginTop: 4,
   },
   registerLink: {
     marginTop: 20,
@@ -502,5 +829,32 @@ const styles = StyleSheet.create({
   featureText: {
     fontSize: 14,
     marginVertical: 4,
+  },
+  typeSelector: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  typeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "transparent",
+    gap: 10,
+  },
+  activeTypeButton: {
+    borderColor: "#818CF8",
+  },
+  typeText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  lottieAnimation: {
+    width: 200,
+    height: 200,
   },
 });

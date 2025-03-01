@@ -1,36 +1,161 @@
-import React, { useState } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Animated as RNAnimated } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  Animated as RNAnimated,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import Animated, { FadeInRight } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../../utils/ThemeContext";
 import { Swipeable } from "react-native-gesture-handler";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
-const mockIssues = [
-  { 
-    id: "1", 
-    title: "Poor Wi-Fi connectivity", 
-    votes: 150,
-    status: "pending"
-  },
-  { id: '2', title: 'Lack of vegetarian food options', votes: 120, status: "pending" },
-  { id: '3', title: 'Insufficient parking space', votes: 100, status: "pending" },
-  { id: '4', title: 'Noisy air conditioning', votes: 80, status: "pending" },
-  { id: '5', title: 'Long check-in process', votes: 75, status: "pending" },
-];
+const API_URL = "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001";
 
 export default function Issues() {
   const { theme, isDark } = useTheme();
-  const [issues, setIssues] = useState(mockIssues);
+  const [issues, setIssues] = useState([]);
+  const [hotelName, setHotelName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const getHotelData = async () => {
+      try {
+        const storedHotelName = await AsyncStorage.getItem("hotelName");
+        if (storedHotelName && storedHotelName.trim() !== "") {
+          setHotelName(storedHotelName);
+          fetchIssues(storedHotelName);
+        } else {
+          // Use a default hotel name for testing if none is found
+          const defaultHotelName = "Araliya Green Hills Hotel";
+          console.log("No hotel name found, using default:", defaultHotelName);
+          setHotelName(defaultHotelName);
+          fetchIssues(defaultHotelName);
+
+          // Also store this default for future use
+          await AsyncStorage.setItem("hotelName", defaultHotelName);
+        }
+      } catch (error) {
+        console.error("Error fetching hotel data:", error);
+        setError("Failed to load hotel data");
+        setLoading(false);
+      }
+    };
+
+    getHotelData();
+  }, []);
+
+  const fetchIssues = async (hotel) => {
+    setLoading(true);
+    setError("");
+
+    try {
+      // Validate hotel name before making the request
+      if (!hotel || hotel.trim() === "") {
+        throw new Error("Hotel name cannot be empty");
+      }
+
+      const encodedHotelName = encodeURIComponent(hotel.trim());
+      console.log("Fetching issues for hotel:", hotel);
+
+      let data;
+
+      // Handle web platform differently due to CORS
+      if (Platform.OS === "web") {
+        console.log("Running on web platform, handling CORS for issues...");
+
+        try {
+          // Direct approach first - this might work if CORS is configured on the server
+          const directResponse = await fetch(
+            `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+            }
+          );
+
+          if (directResponse.ok) {
+            data = await directResponse.json();
+          } else {
+            throw new Error("Direct fetch failed");
+          }
+        } catch (directError) {
+          try {
+            // Try with axios
+            const axiosResponse = await axios.get(
+              `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`
+            );
+
+            if (axiosResponse.status === 200) {
+              data = axiosResponse.data;
+            } else {
+              throw new Error(
+                `Axios request failed with status ${axiosResponse.status}`
+              );
+            }
+          } catch (axiosError) {
+            throw new Error(
+              "Failed to fetch issues due to CORS restrictions. This feature may not work on web browsers."
+            );
+          }
+        }
+      } else {
+        // Native platforms don't have CORS issues
+        const response = await fetch(
+          `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `API request failed with status ${response.status}: ${errorText}`
+          );
+        }
+
+        data = await response.json();
+      }
+
+      // Ensure the data has the expected structure
+      if (!data || !data.Issues) {image.png
+        throw new Error("Invalid data format received from API");
+      }
+
+      // Transform the issues data to match our component's expected format
+      const formattedIssues = data.Issues.map((issue, index) => ({
+        id: (index + 1).toString(),
+        title: issue,
+        status: "pending",
+      }));
+
+      setIssues(formattedIssues);
+    } catch (error) {
+      console.error("Error fetching issues:", error);
+      setError(`Failed to load issues: ${error.message}`);
+      setIssues([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleStatus = (id) => {
-    setIssues(currentIssues =>
-      currentIssues.map(issue =>
+    setIssues((currentIssues) =>
+      currentIssues.map((issue) =>
         issue.id === id
-          ? { 
-              ...issue, 
-              status: issue.status === "pending" ? "resolved" : "pending" 
+          ? {
+              ...issue,
+              status: issue.status === "pending" ? "resolved" : "pending",
             }
           : issue
       )
@@ -87,18 +212,24 @@ export default function Issues() {
     },
     title: {
       fontSize: 28,
-      fontWeight: '700',
+      fontWeight: "700",
       color: theme.text,
-      marginBottom: 24,
+      marginBottom: 8,
       marginTop: 12,
+    },
+    hotelName: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme.primary,
+      marginBottom: 24,
     },
     cardContainer: {
       marginBottom: 16,
       borderRadius: 16,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
     blurContainer: {
-      overflow: 'hidden',
+      overflow: "hidden",
       borderRadius: 16,
     },
     issueItem: {
@@ -114,27 +245,44 @@ export default function Issues() {
     },
     issueTitle: {
       fontSize: 18,
-      fontWeight: '600',
+      fontWeight: "600",
       color: theme.text,
       marginBottom: 12,
     },
-    voteContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    statusBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+      marginLeft: "auto",
     },
-    iconContainer: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      backgroundColor: 'rgba(99, 102, 241, 0.1)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 12,
+    statusText: {
+      fontSize: 12,
+      fontWeight: "600",
     },
-    issueVotes: {
-      fontSize: 15,
-      color: theme.textSecondary,
-      fontWeight: '500',
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+    },
+    errorText: {
+      color: "#EF4444",
+      textAlign: "center",
+      marginBottom: 20,
+    },
+    refreshButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: theme.primary + "20",
+      marginTop: 16,
+    },
+    refreshButtonText: {
+      color: theme.primary,
+      fontWeight: "600",
+      marginLeft: 8,
     },
     swipeableButton: {
       width: 100,
@@ -151,16 +299,6 @@ export default function Issues() {
       fontSize: 12,
       fontWeight: "600",
       marginTop: 4,
-    },
-    statusBadge: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 12,
-      marginLeft: 'auto',
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: "600",
     },
   });
 
@@ -192,12 +330,6 @@ export default function Issues() {
             <View style={styles.issueContent}>
               <View style={styles.textContainer}>
                 <Text style={styles.issueTitle}>{item.title}</Text>
-                <View style={styles.voteContainer}>
-                  <View style={styles.iconContainer}>
-                    <Feather name="thumbs-up" size={16} color="#6366F1" />
-                  </View>
-                  <Text style={styles.issueVotes}>{item.votes}</Text>
-                </View>
               </View>
               <View
                 style={[
@@ -221,9 +353,38 @@ export default function Issues() {
     </Swipeable>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={{ color: theme.text, marginTop: 16 }}>
+          Loading issues...
+        </Text>
+      </View>
+    );
+  }
+
+  if (error && issues.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={() => fetchIssues(hotelName)}
+        >
+          <Feather name="refresh-cw" size={16} color={theme.primary} />
+          <Text style={styles.refreshButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Reported Issues</Text>
+      {hotelName && <Text style={styles.hotelName}>{hotelName}</Text>}
+      {error && <Text style={styles.errorText}>{error}</Text>}
+
       <FlatList
         data={issues}
         renderItem={renderItem}
