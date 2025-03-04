@@ -1,17 +1,15 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useTheme } from "../../utils/ThemeContext";
 
-export default function UserDashboard() {
+export default function Diary() {
   const { theme } = useTheme();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.content}>
-        <Text style={[styles.title, { color: theme.text }]}>
-          Welcome to Tourism App
-        </Text>
+        <Text style={[styles.title, { color: theme.text }]}>Diary</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Start planning your next trip!
+          Record and track your travel memories
         </Text>
       </View>
     </View>

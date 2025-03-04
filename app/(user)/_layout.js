@@ -1,9 +1,9 @@
-import { Tabs } from 'expo-router';
+import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "../../utils/ThemeContext";
-import { TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TouchableOpacity } from "react-native";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function UserLayout() {
   const { theme } = useTheme();
@@ -11,9 +11,9 @@ export default function UserLayout() {
   const handleLogout = async () => {
     try {
       await AsyncStorage.clear();
-      router.replace('/(auth)/login');
+      router.replace("/(auth)/login");
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error("Error logging out:", error);
     }
   };
 
@@ -22,21 +22,21 @@ export default function UserLayout() {
       screenOptions={{
         headerShown: true,
         headerRight: () => (
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={handleLogout}
-            style={{ 
+            style={{
               marginRight: 16,
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               backgroundColor: `${theme.primary}20`,
               paddingHorizontal: 12,
               paddingVertical: 6,
               borderRadius: 8,
             }}
           >
-            <Feather 
-              name="log-out" 
-              size={16} 
+            <Feather
+              name="log-out"
+              size={16}
               color={theme.primary}
               style={{ marginRight: 6 }}
             />
@@ -54,7 +54,7 @@ export default function UserLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: "Dashboard",
           tabBarIcon: ({ color, size }) => (
             <Feather name="home" size={size} color={color} />
           ),
@@ -63,18 +63,18 @@ export default function UserLayout() {
       <Tabs.Screen
         name="budget"
         options={{
-          title: 'Budget',
+          title: "Budget",
           tabBarIcon: ({ color, size }) => (
             <Feather name="dollar-sign" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="hotels"
+        name="diary"
         options={{
-          title: 'Hotels',
+          title: "Diary",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="book" size={size} color={color} />
+            <Feather name="book-open" size={size} color={color} />
           ),
         }}
       />
