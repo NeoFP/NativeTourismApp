@@ -14,7 +14,7 @@ import { useTheme } from "../../utils/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
@@ -98,6 +98,75 @@ const uploadFileToS3 = async (uri, fileName) => {
   }
 };
 
+// Individual form item components
+const DateInput = ({ index, initialValue, updateMetadata, darkMode }) => {
+  const [text, setText] = useState(initialValue || "");
+
+  const handleBlur = () => {
+    updateMetadata(index, "date", text);
+  };
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text
+        style={[styles.inputLabel, { color: darkMode ? "#FFFFFF" : "#000000" }]}
+      >
+        Date
+      </Text>
+      <TextInput
+        style={[
+          styles.metadataInput,
+          {
+            color: darkMode ? "#FFFFFF" : "#000000",
+            borderColor: darkMode ? "#555555" : "#DDDDDD",
+          },
+        ]}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={darkMode ? "#AAAAAA" : "#999999"}
+        value={text}
+        onChangeText={setText}
+        onBlur={handleBlur}
+        keyboardType="default"
+        returnKeyType="done"
+      />
+    </View>
+  );
+};
+
+const LocationInput = ({ index, initialValue, updateMetadata, darkMode }) => {
+  const [text, setText] = useState(initialValue || "");
+
+  const handleBlur = () => {
+    updateMetadata(index, "location", text);
+  };
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text
+        style={[styles.inputLabel, { color: darkMode ? "#FFFFFF" : "#000000" }]}
+      >
+        Location
+      </Text>
+      <TextInput
+        style={[
+          styles.metadataInput,
+          {
+            color: darkMode ? "#FFFFFF" : "#000000",
+            borderColor: darkMode ? "#555555" : "#DDDDDD",
+          },
+        ]}
+        placeholder="Enter location"
+        placeholderTextColor={darkMode ? "#AAAAAA" : "#999999"}
+        value={text}
+        onChangeText={setText}
+        onBlur={handleBlur}
+        keyboardType="default"
+        returnKeyType="done"
+      />
+    </View>
+  );
+};
+
 export default function Diary() {
   const { theme, darkMode } = useTheme();
   const [step, setStep] = useState("initial");
@@ -175,9 +244,16 @@ export default function Diary() {
 
   // Function to update metadata for a specific image
   const updateMetadata = (index, field, value) => {
-    const updated = [...imageMetadata];
-    updated[index] = { ...updated[index], [field]: value };
-    setImageMetadata(updated);
+    // Only update if we have a valid index and field
+    if (index >= 0 && index < imageMetadata.length && field) {
+      setImageMetadata((prev) => {
+        // Create a new array to avoid direct state mutation
+        const updated = [...prev];
+        // Update only the specific field
+        updated[index] = { ...updated[index], [field]: value };
+        return updated;
+      });
+    }
   };
 
   // Function to upload all selected images to S3
@@ -350,77 +426,93 @@ export default function Diary() {
       <Text style={[styles.title, { color: darkMode ? "#FFFFFF" : "#000000" }]}>
         Upload Images
       </Text>
-      <ScrollView style={styles.uploadContainer}>
+      <ScrollView
+        style={styles.uploadContainer}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 80 }}
+      >
         {imageMetadata.map((image, index) => (
-          <View key={index} style={styles.imageContainer}>
-            <Image source={{ uri: image.uri }} style={styles.image} />
+          <View
+            key={index}
+            style={[
+              styles.imageContainer,
+              {
+                marginBottom: 24,
+                backgroundColor: darkMode ? "#222222" : "#FFFFFF",
+                borderRadius: 12,
+                padding: 16,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: darkMode ? 0.3 : 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              },
+            ]}
+          >
+            <Image
+              source={{ uri: image.uri }}
+              style={[styles.image, { borderRadius: 8, marginBottom: 16 }]}
+            />
             <View style={styles.metadataContainer}>
-              <TextInput
-                style={[
-                  styles.metadataInput,
-                  { color: darkMode ? "#FFFFFF" : "#000000" },
-                ]}
-                placeholder="Date (YYYY-MM-DD)"
-                placeholderTextColor={darkMode ? "#AAAAAA" : "#999999"}
-                value={image.date}
-                onChangeText={(text) => updateMetadata(index, "date", text)}
+              <DateInput
+                index={index}
+                initialValue={image.date}
+                updateMetadata={updateMetadata}
+                darkMode={darkMode}
               />
-              <TextInput
-                style={[
-                  styles.metadataInput,
-                  { color: darkMode ? "#FFFFFF" : "#000000" },
-                ]}
-                placeholder="Location"
-                placeholderTextColor={darkMode ? "#AAAAAA" : "#999999"}
-                value={image.location}
-                onChangeText={(text) => updateMetadata(index, "location", text)}
+              <LocationInput
+                index={index}
+                initialValue={image.location}
+                updateMetadata={updateMetadata}
+                darkMode={darkMode}
               />
-              <View
-                style={[
-                  styles.uploadStatus,
-                  uploadProgress[index]?.status === "complete"
-                    ? styles.uploadComplete
-                    : uploadProgress[index]?.status === "error"
-                    ? styles.uploadFailed
-                    : styles.uploading,
-                ]}
-              >
-                {uploadProgress[index]?.status === "uploading" && (
-                  <ActivityIndicator size="small" color="white" />
-                )}
-                <Text style={styles.uploadStatusText}>
-                  {uploadProgress[index]?.status === "complete"
-                    ? "Upload Complete"
-                    : uploadProgress[index]?.status === "error"
-                    ? "Upload Failed"
-                    : uploadProgress[index]?.status === "uploading"
-                    ? "Uploading..."
-                    : "Pending Upload"}
-                </Text>
-              </View>
+              {uploadProgress[index] && (
+                <View
+                  style={[
+                    styles.uploadStatus,
+                    uploadProgress[index].status === "uploading"
+                      ? styles.uploading
+                      : uploadProgress[index].status === "complete"
+                      ? styles.uploadComplete
+                      : styles.uploadFailed,
+                  ]}
+                >
+                  {uploadProgress[index].status === "uploading" && (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  )}
+                  <Text style={styles.uploadStatusText}>
+                    {uploadProgress[index].status === "uploading"
+                      ? "Uploading..."
+                      : uploadProgress[index].status === "complete"
+                      ? "Complete"
+                      : "Failed"}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         ))}
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: theme.primary,
+                opacity: uploading ? 0.7 : 1,
+              },
+            ]}
+            onPress={uploadImagesToS3}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Generate Diary</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setStep("initial")}
-        >
-          <Text style={styles.buttonText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.generateButton, uploading && styles.disabledButton]}
-          onPress={uploadImagesToS3}
-          disabled={uploading}
-        >
-          {uploading ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Text style={styles.buttonText}>Generate Diary</Text>
-          )}
-        </TouchableOpacity>
-      </View>
     </Animated.View>
   );
 
@@ -601,7 +693,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   imageContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
     borderRadius: 12,
     overflow: "hidden",
     shadowColor: "#000",
@@ -623,6 +715,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    marginBottom: 12,
+    width: "100%",
   },
   uploadStatus: {
     position: "absolute",
@@ -693,5 +787,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  buttonRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  actionButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
   },
 });
