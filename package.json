@@ -9,12 +9,16 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/lib-storage": "^3.758.0",
     "@lottiefiles/dotlottie-react": "^0.6.5",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-community/slider": "^4.5.5",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "@react-navigation/stack": "^7.1.1",
+    "aws-amplify": "^6.13.4",
+    "aws-sdk": "^2.1692.0",
     "axios": "^1.7.9",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -22,6 +26,7 @@
     "expo": "^52.0.37",
     "expo-blur": "~14.0.1",
     "expo-constants": "~17.0.4",
+    "expo-image-picker": "^16.0.6",
     "expo-linear-gradient": "~14.0.1",
     "expo-linking": "~7.0.4",
     "expo-router": "~4.0.17",
@@ -36,6 +41,7 @@
     "react-native": "0.76.3",
     "react-native-chart-kit": "^6.12.0",
     "react-native-dropdown-select-list": "^2.0.5",
+    "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-markdown-display": "^7.0.2",
     "react-native-reanimated": "~3.16.1",
@@ -43,7 +49,8 @@
     "react-native-screens": "~4.4.0",
     "react-native-svg": "15.8.0",
     "react-native-view-shot": "~4.0.3",
-    "react-native-web": "~0.19.6"
+    "react-native-web": "~0.19.6",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
