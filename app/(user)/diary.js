@@ -571,6 +571,38 @@ export default function Diary() {
             >
               {diaryContent}
             </Markdown>
+
+            {/* Display uploaded images section */}
+            <View style={styles.imagesSection}>
+              <Text
+                style={[styles.imagesSectionTitle, { color: theme.primary }]}
+              >
+                My Travel Photos
+              </Text>
+
+              {imageMetadata.map((image, index) => (
+                <View key={index} style={styles.diaryImageContainer}>
+                  <Image
+                    source={{ uri: image.uri }}
+                    style={styles.diaryImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.imageDetails}>
+                    <Text style={[styles.imageDate, { color: theme.text }]}>
+                      {image.date}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.imageLocation,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {image.location}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
 
           <TouchableOpacity
@@ -806,5 +838,45 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
+  },
+  imagesSection: {
+    marginTop: 30,
+    padding: 0,
+  },
+  imagesSectionTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  diaryImageContainer: {
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  diaryImage: {
+    width: "100%",
+    height: 220,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  imageDetails: {
+    padding: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+  },
+  imageDate: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  imageLocation: {
+    fontSize: 14,
   },
 });
