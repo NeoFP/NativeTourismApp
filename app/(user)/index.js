@@ -1,13 +1,21 @@
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
 import { useTheme } from "../../utils/ThemeContext";
 import { useState, useEffect } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { reviewsData } from "./reviewsData";
+import ReviewForm from "../components/ReviewForm";
 
 export default function UserDashboard() {
   const { theme } = useTheme();
   const [randomReviews, setRandomReviews] = useState([]);
+  const [showReviewForm, setShowReviewForm] = useState(false);
 
   useEffect(() => {
     // Get random reviews
@@ -57,6 +65,19 @@ export default function UserDashboard() {
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Discover what travelers are saying!
         </Text>
+
+        <TouchableOpacity
+          style={[styles.writeReviewButton, { backgroundColor: theme.primary }]}
+          onPress={() => setShowReviewForm(true)}
+        >
+          <Feather
+            name="edit"
+            size={18}
+            color="#FFF"
+            style={styles.buttonIcon}
+          />
+          <Text style={styles.writeReviewButtonText}>Write a Review</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -68,6 +89,12 @@ export default function UserDashboard() {
           <ReviewCard key={index} review={review} />
         ))}
       </ScrollView>
+
+      <ReviewForm
+        visible={showReviewForm}
+        onClose={() => setShowReviewForm(false)}
+        theme={theme}
+      />
     </View>
   );
 }
@@ -88,6 +115,22 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     marginBottom: 20,
+  },
+  writeReviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  writeReviewButtonText: {
+    color: "#FFF",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
   reviewsContainer: {
     flex: 1,
