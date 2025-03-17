@@ -392,7 +392,7 @@ export default function Budget() {
     setLoading(true);
 
     try {
-      // Create payload with location in the correct format [longitude, latitude]
+      // Create payload
       const payload = {
         n_rooms: getRoomsCount(rooms),
         location: [selectedLocation.lon, selectedLocation.lat], // [longitude, latitude]
@@ -401,21 +401,35 @@ export default function Budget() {
       };
 
       console.log("Sending payload:", payload);
+      console.log("Payload JSON string:", JSON.stringify(payload));
+      console.log(
+        "API URL:",
+        "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001/generate_travel_plan"
+      );
 
-      // Increase timeout to prevent timeout errors
-      const response = await axios.post(
+      // Make a single fetch request to the API
+      const response = await fetch(
         "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001/generate_travel_plan",
-        payload,
         {
-          timeout: 60000, // Increased to 60 seconds timeout
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
+          body: JSON.stringify(payload),
         }
       );
 
-      setTravelPlan(response.data);
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+
+      // Parse the response as JSON
+      const data = await response.json();
+      console.log("Travel plan data:", data);
+
+      // Set the travel plan and show results
+      setTravelPlan(data);
       setShowResults(true);
     } catch (error) {
       console.error("Error generating travel plan:", error);
@@ -423,19 +437,9 @@ export default function Budget() {
       // More detailed error message
       let errorMessage =
         "Failed to generate travel plan. Please try again later.";
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        errorMessage = `Server error: ${error.response.status}. Please try again later.`;
-      } else if (error.request) {
-        // The request was made but no response was received
-        if (error.code === "ECONNABORTED") {
-          errorMessage =
-            "Request timed out. The server is taking too long to respond. Please try again later or try a different location.";
-        } else {
-          errorMessage =
-            "No response from server. Please check your internet connection and try again.";
-        }
+
+      if (error.message) {
+        errorMessage = `Error: ${error.message}`;
       }
 
       Alert.alert("Error", errorMessage);
@@ -449,11 +453,11 @@ export default function Budget() {
       return null;
     }
 
-    // Get the travel plan text
-    const travelPlanText = travelPlan.travel_plan;
+    // Get the travel plan array
+    const travelPlans = travelPlan.travel_plan;
 
     // Log the full response for debugging
-    console.log("Full travel plan text:", travelPlanText);
+    console.log("Travel plans response:", travelPlans);
 
     return (
       <Animated.ScrollView
@@ -589,7 +593,7 @@ export default function Budget() {
                 paragraph: { marginVertical: 8, color: theme.text },
               }}
             >
-              {travelPlanText}
+              {travelPlans.join("\n\n---\n\n")}
             </Markdown>
           </View>
         </View>
