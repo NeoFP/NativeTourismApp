@@ -136,6 +136,10 @@ export default function Login() {
         type: loginType,
       });
 
+      // Add detailed console log of the exact payload being sent to the API
+      console.log("Login API Payload:", JSON.stringify(payload, null, 2));
+      console.log("Login URL:", `${API_URL}/login`);
+
       let response;
       let data;
 
@@ -148,6 +152,7 @@ export default function Login() {
           // Approach 1: Use a proxy service (if available)
           const proxyUrl = "https://cors-anywhere.herokuapp.com/";
           console.log("Trying with CORS proxy...");
+          console.log("Proxy URL:", `${proxyUrl}${API_URL}/login`);
 
           response = await fetch(`${proxyUrl}${API_URL}/login`, {
             method: "POST",
@@ -158,10 +163,15 @@ export default function Login() {
             body: JSON.stringify(payload),
           });
 
+          console.log("Proxy response status:", response.status);
+
           if (response.ok) {
             data = await response.json();
             console.log("Proxy approach successful");
+            console.log("Login response data:", data);
           } else {
+            const errorText = await response.text();
+            console.log("Proxy approach failed with response:", errorText);
             throw new Error("Proxy approach failed");
           }
         } catch (proxyError) {
@@ -170,6 +180,8 @@ export default function Login() {
           try {
             // Approach 2: Try with no-cors mode (will result in opaque response)
             console.log("Trying with no-cors mode...");
+            console.log("no-cors URL:", `${API_URL}/login`);
+            console.log("no-cors payload:", JSON.stringify(payload, null, 2));
 
             // Note: no-cors mode won't give us access to the response data
             // This is mostly to see if the request goes through at all
@@ -198,6 +210,29 @@ export default function Login() {
               email.split("@")[0] || "User"
             );
 
+            // Add hotel name extraction for hotel type users
+            if (loginType === "hotel") {
+              // Extract hotel name from email (before the @ symbol) or use a default
+              const emailParts = email.split("@");
+              let hotelName = "";
+
+              if (emailParts.length > 0 && emailParts[0]) {
+                // Convert email username to a proper name format (capitalize first letter of each word)
+                hotelName =
+                  emailParts[0]
+                    .replace(/[._-]/g, " ") // Replace dots, underscores, hyphens with spaces
+                    .split(" ")
+                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(" ") + " Hotel";
+              } else {
+                // Use email part as hotel name instead of default
+                hotelName = email.split("@")[0] + " Hotel";
+              }
+
+              console.log("Storing hotel name from email:", hotelName);
+              await AsyncStorage.setItem("hotelName", hotelName);
+            }
+
             // Navigate based on user type
             if (loginType === "hotel") {
               router.replace("/(admin)");
@@ -216,6 +251,9 @@ export default function Login() {
       } else {
         // Native platforms don't have CORS issues
         console.log("Running on native platform, using standard fetch");
+        console.log("Native fetch URL:", `${API_URL}/login`);
+        console.log("Native fetch payload:", JSON.stringify(payload, null, 2));
+
         response = await fetch(`${API_URL}/login`, {
           method: "POST",
           headers: {
@@ -224,14 +262,18 @@ export default function Login() {
           body: JSON.stringify(payload),
         });
 
+        console.log("Native fetch response status:", response.status);
+
         if (!response.ok) {
           const errorText = await response.text();
+          console.log("Native fetch error response:", errorText);
           throw new Error(
             `Login failed with status ${response.status}: ${errorText}`
           );
         }
 
         data = await response.json();
+        console.log("Native fetch successful, data:", data);
       }
 
       // Process successful response data
@@ -271,7 +313,8 @@ export default function Login() {
                 .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                 .join(" ") + " Hotel";
           } else {
-            hotelName = "Araliya Green Hills Hotel"; // Default fallback
+            // Use email part as hotel name instead of default
+            hotelName = email.split("@")[0] + " Hotel";
           }
         }
 
@@ -292,6 +335,17 @@ export default function Login() {
       }, 1500);
     } catch (error) {
       console.error("Login error:", error.message);
+      console.log("Error type:", error.constructor.name);
+
+      if (error.response) {
+        console.log("Error response status:", error.response.status);
+        console.log("Error response data:", error.response.data);
+      }
+
+      if (error.request) {
+        console.log("Error request details:", error.request);
+      }
+
       setShowLoadingModal(false);
 
       // Set a user-friendly error message

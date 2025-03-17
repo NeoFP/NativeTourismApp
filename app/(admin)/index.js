@@ -43,14 +43,45 @@ export default function Index() {
           setHotelName(storedHotelName);
           fetchReviewStats(storedHotelName);
         } else {
-          // Use a default hotel name for testing if none is found
-          const defaultHotelName = "Araliya Green Hills Hotel";
-          console.log("No hotel name found, using default:", defaultHotelName);
-          setHotelName(defaultHotelName);
-          fetchReviewStats(defaultHotelName);
+          // Get the user email to extract a hotel name from it
+          try {
+            const userEmail = await AsyncStorage.getItem("userEmail");
+            let derivedHotelName = "";
 
-          // Also store this default for future use
-          await AsyncStorage.setItem("hotelName", defaultHotelName);
+            if (userEmail) {
+              // Extract hotel name from email (before the @ symbol)
+              const emailParts = userEmail.split("@");
+              if (emailParts.length > 0 && emailParts[0]) {
+                // Convert email username to hotel name
+                derivedHotelName =
+                  emailParts[0]
+                    .replace(/[._-]/g, " ") // Replace dots, underscores, hyphens with spaces
+                    .split(" ")
+                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(" ") + " Hotel";
+              } else {
+                derivedHotelName = "Your Hotel";
+              }
+            } else {
+              derivedHotelName = "Your Hotel";
+            }
+
+            console.log(
+              "No hotel name found, using derived name:",
+              derivedHotelName
+            );
+            setHotelName(derivedHotelName);
+            fetchReviewStats(derivedHotelName);
+
+            // Store this derived name for future use
+            await AsyncStorage.setItem("hotelName", derivedHotelName);
+          } catch (error) {
+            console.error("Error deriving hotel name:", error);
+            const fallbackName = "Your Hotel";
+            setHotelName(fallbackName);
+            fetchReviewStats(fallbackName);
+            await AsyncStorage.setItem("hotelName", fallbackName);
+          }
         }
       } catch (error) {
         console.error("Error fetching hotel data:", error);

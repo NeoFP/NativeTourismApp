@@ -124,6 +124,13 @@ export default function Register() {
         name: name.trim(),
       };
 
+      // Add detailed console log of the exact payload being sent to the API
+      console.log(
+        "API Payload for registration:",
+        JSON.stringify(payload, null, 2)
+      );
+      console.log("Registration URL:", `${API_URL}/register`);
+
       let response;
       let data;
 
@@ -137,6 +144,7 @@ export default function Register() {
           // Approach 1: Use a proxy service (if available)
           const proxyUrl = "https://cors-anywhere.herokuapp.com/";
           console.log("Trying with CORS proxy...");
+          console.log("Proxy URL:", `${proxyUrl}${API_URL}/register`);
 
           response = await fetch(`${proxyUrl}${API_URL}/register`, {
             method: "POST",
@@ -147,10 +155,15 @@ export default function Register() {
             body: JSON.stringify(payload),
           });
 
+          console.log("Proxy response status:", response.status);
+
           if (response.ok) {
             data = await response.json();
             console.log("Proxy approach successful for registration");
+            console.log("Registration data received:", data);
           } else {
+            const errorText = await response.text();
+            console.log("Proxy approach failed with response:", errorText);
             throw new Error("Proxy approach failed");
           }
         } catch (proxyError) {
@@ -159,6 +172,8 @@ export default function Register() {
           try {
             // Approach 2: Try with no-cors mode (will result in opaque response)
             console.log("Trying with no-cors mode...");
+            console.log("no-cors URL:", `${API_URL}/register`);
+            console.log("no-cors payload:", JSON.stringify(payload, null, 2));
 
             // Note: no-cors mode won't give us access to the response data
             // This is mostly to see if the request goes through at all
@@ -199,6 +214,9 @@ export default function Register() {
             // Try direct axios call as a last resort
             try {
               console.log("Trying direct axios call...");
+              console.log("Axios URL:", `${API_URL}/register`);
+              console.log("Axios payload:", JSON.stringify(payload, null, 2));
+
               const axiosResponse = await axios.post(
                 `${API_URL}/register`,
                 payload,
@@ -209,10 +227,22 @@ export default function Register() {
                 }
               );
 
+              console.log("Axios response status:", axiosResponse.status);
+              console.log("Axios response headers:", axiosResponse.headers);
+
               data = axiosResponse.data;
-              console.log("Axios approach successful");
+              console.log("Axios approach successful, data:", data);
             } catch (axiosError) {
               console.log("Axios approach failed:", axiosError.message);
+              console.log(
+                "Axios error details:",
+                axiosError.response
+                  ? {
+                      status: axiosError.response.status,
+                      data: axiosError.response.data,
+                    }
+                  : "No response"
+              );
 
               // Final fallback: Display a special message for web users
               throw new Error("CORS_BLOCKED");
@@ -224,6 +254,8 @@ export default function Register() {
         console.log(
           "Running on native platform, using standard fetch for registration"
         );
+        console.log("Native fetch URL:", `${API_URL}/register`);
+        console.log("Native fetch payload:", JSON.stringify(payload, null, 2));
 
         const response = await fetch(`${API_URL}/register`, {
           method: "POST",
@@ -233,14 +265,18 @@ export default function Register() {
           body: JSON.stringify(payload),
         });
 
+        console.log("Native fetch response status:", response.status);
+
         if (!response.ok) {
           const errorText = await response.text();
+          console.log("Native fetch error response:", errorText);
           throw new Error(
             `API request failed with status ${response.status}: ${errorText}`
           );
         }
 
         data = await response.json();
+        console.log("Native fetch successful, data:", data);
       }
 
       console.log("Registration response:", data);
@@ -262,6 +298,17 @@ export default function Register() {
       }, 2000);
     } catch (error) {
       console.error("Registration error:", error);
+      console.log("Error type:", error.constructor.name);
+      console.log("Error message:", error.message);
+
+      if (error.response) {
+        console.log("Error response status:", error.response.status);
+        console.log("Error response data:", error.response.data);
+      }
+
+      if (error.request) {
+        console.log("Error request details:", error.request);
+      }
 
       // Hide loading modal
       setShowLoadingModal(false);
