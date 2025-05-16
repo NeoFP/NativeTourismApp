@@ -148,8 +148,8 @@ export default function Login() {
         console.log("Running on web platform, handling CORS...");
 
         try {
-          // Direct approach without proxy
-          console.log("Trying direct API call...");
+          // Direct approach with JSON
+          console.log("Trying direct API call with JSON...");
           console.log("API URL:", `${API_URL}/login`);
           console.log("Payload:", JSON.stringify(payload, null, 2));
 
@@ -160,15 +160,22 @@ export default function Login() {
               Accept: "application/json",
             },
             body: JSON.stringify(payload),
-            // Don't use no-cors mode as it prevents reading the response
           });
 
           console.log("Direct response status:", response.status);
 
           if (!response.ok) {
-            const errorText = await response.text();
-            console.log("Login failed with response:", errorText);
-            throw new Error(`Login failed: ${errorText}`);
+            const errorData = await response.json().catch(() => null);
+            const errorText = await response
+              .text()
+              .catch(() => "Unknown error");
+            console.log("Login failed with response:", errorData || errorText);
+
+            if (errorData && errorData.error) {
+              throw new Error(errorData.error);
+            } else {
+              throw new Error(`Login failed: ${errorText}`);
+            }
           }
 
           data = await response.json();
@@ -179,7 +186,7 @@ export default function Login() {
           }
         } catch (error) {
           console.log("Login error:", error.message);
-          setError("Login failed: " + error.message);
+          setError(error.message);
           setIsLoading(false);
           setShowLoadingModal(false);
           return;
@@ -201,11 +208,18 @@ export default function Login() {
         console.log("Native fetch response status:", response.status);
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.log("Native fetch error response:", errorText);
-          throw new Error(
-            `Login failed with status ${response.status}: ${errorText}`
-          );
+          try {
+            const errorData = await response.json();
+            if (errorData && errorData.error) {
+              throw new Error(errorData.error);
+            }
+          } catch (jsonError) {
+            const errorText = await response.text();
+            console.log("Native fetch error response:", errorText);
+            throw new Error(
+              `Login failed with status ${response.status}: ${errorText}`
+            );
+          }
         }
 
         data = await response.json();

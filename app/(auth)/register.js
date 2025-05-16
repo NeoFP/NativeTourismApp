@@ -141,113 +141,70 @@ export default function Register() {
         );
 
         try {
-          // Approach 1: Use a proxy service (if available)
-          const proxyUrl = "https://cors-anywhere.herokuapp.com/";
-          console.log("Trying with CORS proxy...");
-          console.log("Proxy URL:", `${proxyUrl}${API_URL}/register`);
+          // Direct approach with JSON
+          console.log("Trying direct API call with JSON...");
+          console.log("API URL:", `${API_URL}/register`);
+          console.log("Payload:", JSON.stringify(payload, null, 2));
 
-          response = await fetch(`${proxyUrl}${API_URL}/register`, {
+          response = await fetch(`${API_URL}/register`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Origin: window.location.origin,
+              Accept: "application/json",
             },
             body: JSON.stringify(payload),
+            // Don't use no-cors mode as it prevents reading the response
           });
 
-          console.log("Proxy response status:", response.status);
+          console.log("Direct response status:", response.status);
 
-          if (response.ok) {
-            data = await response.json();
-            console.log("Proxy approach successful for registration");
-            console.log("Registration data received:", data);
-          } else {
-            const errorText = await response.text();
-            console.log("Proxy approach failed with response:", errorText);
-            throw new Error("Proxy approach failed");
-          }
-        } catch (proxyError) {
-          console.log("Proxy approach failed:", proxyError.message);
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            const errorText = await response
+              .text()
+              .catch(() => "Unknown error");
+            console.log(
+              "Registration failed with response:",
+              errorData || errorText
+            );
 
-          try {
-            // Approach 2: Try with no-cors mode (will result in opaque response)
-            console.log("Trying with no-cors mode...");
-            console.log("no-cors URL:", `${API_URL}/register`);
-            console.log("no-cors payload:", JSON.stringify(payload, null, 2));
-
-            // Note: no-cors mode won't give us access to the response data
-            // This is mostly to see if the request goes through at all
-            await fetch(`${API_URL}/register`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(payload),
-              mode: "no-cors",
-            });
-
-            // Since we can't read the response with no-cors,
-            // we'll make an assumption that if it didn't throw,
-            // the registration might have succeeded
-            console.log("no-cors request completed, assuming success");
-
-            // Store the hotel name if registering as a hotel
-            if (type === "hotel") {
-              await AsyncStorage.setItem("hotelName", name);
-            }
-
-            // Show success message
-            setSuccess("Registration successful! Redirecting to login...");
-
-            // Hide loading modal
-            setShowLoadingModal(false);
-
-            // Wait a bit then redirect
-            setTimeout(() => {
-              router.replace("/login");
-            }, 2000);
-
-            return; // Exit early since we're navigating
-          } catch (noCorsError) {
-            console.log("no-cors approach failed:", noCorsError.message);
-
-            // Try direct axios call as a last resort
-            try {
-              console.log("Trying direct axios call...");
-              console.log("Axios URL:", `${API_URL}/register`);
-              console.log("Axios payload:", JSON.stringify(payload, null, 2));
-
-              const axiosResponse = await axios.post(
-                `${API_URL}/register`,
-                payload,
-                {
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                }
-              );
-
-              console.log("Axios response status:", axiosResponse.status);
-              console.log("Axios response headers:", axiosResponse.headers);
-
-              data = axiosResponse.data;
-              console.log("Axios approach successful, data:", data);
-            } catch (axiosError) {
-              console.log("Axios approach failed:", axiosError.message);
-              console.log(
-                "Axios error details:",
-                axiosError.response
-                  ? {
-                      status: axiosError.response.status,
-                      data: axiosError.response.data,
-                    }
-                  : "No response"
-              );
-
-              // Final fallback: Display a special message for web users
-              throw new Error("CORS_BLOCKED");
+            if (errorData && errorData.error) {
+              throw new Error(errorData.error);
+            } else {
+              throw new Error(`Registration failed: ${errorText}`);
             }
           }
+
+          data = await response.json();
+          console.log("Registration response data:", data);
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          // Store the hotel name if registering as a hotel
+          if (type === "hotel") {
+            await AsyncStorage.setItem("hotelName", name);
+          }
+
+          // Show success message
+          setSuccess("Registration successful! Redirecting to login...");
+
+          // Hide loading modal
+          setShowLoadingModal(false);
+
+          // Wait a bit then redirect
+          setTimeout(() => {
+            router.replace("/login");
+          }, 2000);
+
+          return;
+        } catch (error) {
+          console.log("Registration error:", error.message);
+          setError(error.message);
+          setIsLoading(false);
+          setShowLoadingModal(false);
+          return;
         }
       } else {
         // Native platforms don't have CORS issues
@@ -268,11 +225,17 @@ export default function Register() {
         console.log("Native fetch response status:", response.status);
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.log("Native fetch error response:", errorText);
-          throw new Error(
-            `API request failed with status ${response.status}: ${errorText}`
-          );
+          try {
+            const errorData = await response.json();
+            if (errorData && errorData.error) {
+              throw new Error(errorData.error);
+            }
+          } catch (jsonError) {
+            const errorText = await response.text();
+            throw new Error(
+              `API request failed with status ${response.status}: ${errorText}`
+            );
+          }
         }
 
         data = await response.json();

@@ -9,7 +9,7 @@ import { useTheme } from "../../utils/ThemeContext";
 import { useState, useEffect } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
-import { reviewsData } from "./reviewsData";
+import reviewsData from "../../data/reviewsData";
 import ReviewForm from "../components/ReviewForm";
 
 export default function UserDashboard() {
