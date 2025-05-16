@@ -227,7 +227,7 @@ export default function Login() {
       }
 
       // Process successful response data
-      const { type, name } = data || {};
+      const { type, name, _id } = data || {};
       const userEmail = email; // Use email from form
 
       setRole(type || loginType);
@@ -244,6 +244,12 @@ export default function Login() {
         "username",
         name || email.split("@")[0] || "User"
       );
+
+      // Store user ID for API requests
+      if (_id) {
+        await AsyncStorage.setItem("userId", _id);
+        console.log("Stored user ID:", _id);
+      }
 
       // Store hotel name if user is a hotel
       if ((type || loginType) === "hotel") {
