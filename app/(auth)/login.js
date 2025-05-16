@@ -280,7 +280,7 @@ export default function Login() {
         if ((type || loginType) === "hotel") {
           router.replace("/(admin)");
         } else {
-          router.replace("/(user)");
+          router.replace("/(tabs)");
         }
       }, 1500);
     } catch (error) {
