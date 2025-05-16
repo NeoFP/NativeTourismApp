@@ -398,9 +398,9 @@ export default function Budget() {
     setLoading(true);
 
     try {
-      // Get the user ID (email) from AsyncStorage directly
-      const userEmail = await AsyncStorage.getItem("userEmail");
-      if (!userEmail) {
+      // Get the user ID from the utility function
+      const userId = await getUserId();
+      if (!userId) {
         Alert.alert(
           "Error",
           "You need to be logged in to generate a plan. Please log in and try again."
@@ -415,7 +415,7 @@ export default function Budget() {
         location: [selectedLocation.lon, selectedLocation.lat], // [longitude, latitude]
         budget: budget * 320, // Convert USD to LKR (approximate conversion)
         n_days: getDurationInDays(duration),
-        _id: userEmail, // Use email as the user identifier
+        _id: userId, // Use the MongoDB _id or fallback to email
       };
 
       console.log("Sending payload:", payload);
