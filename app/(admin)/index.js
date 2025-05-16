@@ -21,7 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 
 const { width } = Dimensions.get("window");
-const API_URL = "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001";
+const API_URL = "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001";
 
 export default function Index() {
   const { theme, isDark } = useTheme();

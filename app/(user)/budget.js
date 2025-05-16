@@ -404,12 +404,12 @@ export default function Budget() {
       console.log("Payload JSON string:", JSON.stringify(payload));
       console.log(
         "API URL:",
-        "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001/generate_travel_plan"
+        "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001/generate_travel_plan"
       );
 
       // Make a single fetch request to the API
       const response = await fetch(
-        "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001/generate_travel_plan",
+        "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001/generate_travel_plan",
         {
           method: "POST",
           headers: {

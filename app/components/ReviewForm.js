@@ -52,7 +52,7 @@ export default function ReviewForm({ visible, onClose, theme }) {
 
       // Send the data to the sentiment analysis API
       const response = await axios.post(
-        "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001/analyze_sentiment",
+        "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001/analyze_sentiment",
         reviewData
       );
 

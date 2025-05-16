@@ -352,7 +352,7 @@ export default function Diary() {
 
       // Call the ML API
       const response = await axios.post(
-        "http://ec2-13-50-235-60.eu-north-1.compute.amazonaws.com:5001/create_diary",
+        "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001/create_diary",
         { image_dict },
         {
           headers: { "Content-Type": "application/json" },
