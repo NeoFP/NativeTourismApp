@@ -73,11 +73,14 @@ export default function ProfileTab() {
 
   const handleLogout = async () => {
     try {
+      // Clear the essential user data from AsyncStorage
       await AsyncStorage.removeItem("userEmail");
       await AsyncStorage.removeItem("userId");
       await AsyncStorage.removeItem("userName");
+      await AsyncStorage.removeItem("userType");
+      await AsyncStorage.removeItem("username");
 
-      Alert.alert("Success", "Logged out successfully");
+      // Force navigation to login
       router.replace("/(auth)/login");
     } catch (error) {
       console.error("Error during logout:", error);
@@ -282,18 +285,7 @@ export default function ProfileTab() {
 
         <TouchableOpacity
           style={[styles.logoutButton, { borderColor: theme.error }]}
-          onPress={() => {
-            Alert.alert("Logout", "Are you sure you want to logout?", [
-              {
-                text: "Cancel",
-                style: "cancel",
-              },
-              {
-                text: "Logout",
-                onPress: handleLogout,
-              },
-            ]);
-          }}
+          onPress={handleLogout}
         >
           <Feather name="log-out" size={20} color={theme.error} />
           <Text style={[styles.logoutText, { color: theme.error }]}>
