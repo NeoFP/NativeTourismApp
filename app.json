@@ -2,7 +2,8 @@
   "expo": {
     "scheme": "your-app-scheme",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store"
     ],
     "name": "NativeTourismApp",
     "slug": "NativeTourismApp",
