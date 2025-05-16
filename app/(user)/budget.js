@@ -535,20 +535,6 @@ export default function Budget() {
     }
   };
 
-  // Function to show plan details alert
-  const viewPlanDetails = (plan) => {
-    Alert.alert(
-      "Plan Details",
-      `This plan for ${plan.hotel.name} has been automatically saved to your account.`,
-      [
-        {
-          text: "OK",
-          style: "default",
-        },
-      ]
-    );
-  };
-
   const renderTravelPlanResults = () => {
     if (!travelPlan || !travelPlan.plans) {
       return null;
@@ -706,16 +692,6 @@ export default function Budget() {
                   </View>
                 ))}
               </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.selectButton,
-                  { backgroundColor: theme.primary },
-                ]}
-                onPress={() => viewPlanDetails(plan)}
-              >
-                <Text style={styles.selectButtonText}>View Details</Text>
-              </TouchableOpacity>
             </View>
           </Animated.View>
         ))}
@@ -1208,17 +1184,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
     flex: 1,
-  },
-  selectButton: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  selectButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
   },
   subtitle: {
     fontSize: 16,

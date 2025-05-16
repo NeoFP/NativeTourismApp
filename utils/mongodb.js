@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// MongoDB connection string (replace with your actual connection string)
+// MongoDB connection and API details
 const API_URL = "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001";
 const MONGODB_URI =
   "mongodb+srv://researchsonals:researchsonals@torismai.4uggb.mongodb.net/";
@@ -12,23 +12,17 @@ export const getUserId = async () => {
     // First try to get the user's MongoDB _id
     let userId = await AsyncStorage.getItem("userId");
 
-    // If we don't have it stored, get the user's email and fetch their ID
+    // If we don't have it stored, get the user's email and use that as ID
     if (!userId) {
       const userEmail = await AsyncStorage.getItem("userEmail");
       if (!userEmail) {
         throw new Error("User not logged in");
       }
 
-      try {
-        // Instead of calling the API, we'll just store the email as a temporary placeholder
-        // The actual MongoDB ID will be used in the backend
-        await AsyncStorage.setItem("userId", userEmail);
-        userId = userEmail;
-        console.log("Using email as user identifier:", userId);
-      } catch (error) {
-        console.error("Error setting user ID in AsyncStorage:", error);
-        throw error;
-      }
+      // Use email as the user identifier
+      userId = userEmail;
+      await AsyncStorage.setItem("userId", userId);
+      console.log("Using email as user identifier:", userId);
     }
 
     return userId;
@@ -50,6 +44,7 @@ export const saveTravelPlans = async (travelPlans) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
         userId,
@@ -76,12 +71,16 @@ export const getTravelPlans = async () => {
       throw new Error("User ID not found");
     }
 
-    const response = await fetch(`${API_URL}/getTravelPlans?userId=${userId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await fetch(
+      `${API_URL}/get_user_plans?_id=${encodeURIComponent(userId)}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
       throw new Error("Failed to fetch travel plans");

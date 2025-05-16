@@ -7,18 +7,69 @@ const MONGODB_URI =
 const DB_NAME = "TouristAI";
 const API_URL = "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001";
 
+// Check if SecureStore is available
+const isSecureStoreAvailable = async () => {
+  try {
+    return await SecureStore.isAvailableAsync();
+  } catch (e) {
+    console.log("SecureStore not available, using AsyncStorage instead");
+    return false;
+  }
+};
+
+// Securely store a value
+const secureStore = async (key, value) => {
+  try {
+    const useSecureStore = await isSecureStoreAvailable();
+    if (useSecureStore) {
+      await SecureStore.setItemAsync(key, value);
+    } else {
+      await AsyncStorage.setItem(key, value);
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error storing ${key}:`, error);
+    return false;
+  }
+};
+
+// Securely retrieve a value
+const secureRetrieve = async (key) => {
+  try {
+    const useSecureStore = await isSecureStoreAvailable();
+    if (useSecureStore) {
+      return await SecureStore.getItemAsync(key);
+    } else {
+      return await AsyncStorage.getItem(key);
+    }
+  } catch (error) {
+    console.error(`Error retrieving ${key}:`, error);
+    return null;
+  }
+};
+
+// Securely delete a value
+const secureDelete = async (key) => {
+  try {
+    const useSecureStore = await isSecureStoreAvailable();
+    if (useSecureStore) {
+      await SecureStore.deleteItemAsync(key);
+    } else {
+      await AsyncStorage.removeItem(key);
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error deleting ${key}:`, error);
+    return false;
+  }
+};
+
 // Store user credentials securely
 export const storeUserCredentials = async (email, password) => {
   try {
     await AsyncStorage.setItem("userEmail", email);
-
-    // For extra security, consider using SecureStore for sensitive info like passwords
-    if (SecureStore.isAvailableAsync()) {
-      await SecureStore.setItemAsync("userPassword", password);
-    } else {
-      // Fallback to AsyncStorage if SecureStore is not available
-      await AsyncStorage.setItem("userPassword", password);
-    }
+    await AsyncStorage.setItem("userId", email); // Use email as the user ID
+    await secureStore("userPassword", password);
 
     console.log("User credentials stored successfully");
     return true;
@@ -33,12 +84,9 @@ export const clearUserCredentials = async () => {
   try {
     await AsyncStorage.removeItem("userEmail");
     await AsyncStorage.removeItem("userId");
-
-    if (SecureStore.isAvailableAsync()) {
-      await SecureStore.deleteItemAsync("userPassword");
-    } else {
-      await AsyncStorage.removeItem("userPassword");
-    }
+    await AsyncStorage.removeItem("userName");
+    await AsyncStorage.removeItem("profileImage");
+    await secureDelete("userPassword");
 
     console.log("User credentials cleared successfully");
     return true;
