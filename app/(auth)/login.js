@@ -147,106 +147,42 @@ export default function Login() {
       if (Platform.OS === "web") {
         console.log("Running on web platform, handling CORS...");
 
-        // Try multiple approaches for web
         try {
-          // Approach 1: Use a proxy service (if available)
-          const proxyUrl = "https://cors-anywhere.herokuapp.com/";
-          console.log("Trying with CORS proxy...");
-          console.log("Proxy URL:", `${proxyUrl}${API_URL}/login`);
+          // Direct approach without proxy
+          console.log("Trying direct API call...");
+          console.log("API URL:", `${API_URL}/login`);
+          console.log("Payload:", JSON.stringify(payload, null, 2));
 
-          response = await fetch(`${proxyUrl}${API_URL}/login`, {
+          response = await fetch(`${API_URL}/login`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Origin: window.location.origin,
+              Accept: "application/json",
             },
             body: JSON.stringify(payload),
+            // Don't use no-cors mode as it prevents reading the response
           });
 
-          console.log("Proxy response status:", response.status);
+          console.log("Direct response status:", response.status);
 
-          if (response.ok) {
-            data = await response.json();
-            console.log("Proxy approach successful");
-            console.log("Login response data:", data);
-          } else {
+          if (!response.ok) {
             const errorText = await response.text();
-            console.log("Proxy approach failed with response:", errorText);
-            throw new Error("Proxy approach failed");
+            console.log("Login failed with response:", errorText);
+            throw new Error(`Login failed: ${errorText}`);
           }
-        } catch (proxyError) {
-          console.log("Proxy approach failed:", proxyError.message);
 
-          try {
-            // Approach 2: Try with no-cors mode (will result in opaque response)
-            console.log("Trying with no-cors mode...");
-            console.log("no-cors URL:", `${API_URL}/login`);
-            console.log("no-cors payload:", JSON.stringify(payload, null, 2));
+          data = await response.json();
+          console.log("Login response data:", data);
 
-            // Note: no-cors mode won't give us access to the response data
-            // This is mostly to see if the request goes through at all
-            await fetch(`${API_URL}/login`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(payload),
-              mode: "no-cors",
-            });
-
-            // Since we can't read the response with no-cors,
-            // we'll make an assumption that if it didn't throw,
-            // the login might have succeeded
-
-            console.log(
-              "no-cors request completed, attempting direct navigation"
-            );
-
-            // Store user data with assumptions
-            await AsyncStorage.setItem("userEmail", email.trim());
-            await AsyncStorage.setItem("userType", loginType);
-            await AsyncStorage.setItem(
-              "username",
-              email.split("@")[0] || "User"
-            );
-
-            // Add hotel name extraction for hotel type users
-            if (loginType === "hotel") {
-              // Extract hotel name from email (before the @ symbol) or use a default
-              const emailParts = email.split("@");
-              let hotelName = "";
-
-              if (emailParts.length > 0 && emailParts[0]) {
-                // Convert email username to a proper name format (capitalize first letter of each word)
-                hotelName =
-                  emailParts[0]
-                    .replace(/[._-]/g, " ") // Replace dots, underscores, hyphens with spaces
-                    .split(" ")
-                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                    .join(" ") + " Hotel";
-              } else {
-                // Use email part as hotel name instead of default
-                hotelName = email.split("@")[0] + " Hotel";
-              }
-
-              console.log("Storing hotel name from email:", hotelName);
-              await AsyncStorage.setItem("hotelName", hotelName);
-            }
-
-            // Navigate based on user type
-            if (loginType === "hotel") {
-              router.replace("/(admin)");
-            } else {
-              router.replace("/(user)");
-            }
-
-            return; // Exit early since we're navigating
-          } catch (noCorsError) {
-            console.log("no-cors approach failed:", noCorsError.message);
-
-            // Final fallback: Display a special message for web users
-            throw new Error("CORS_BLOCKED");
+          if (data.error) {
+            throw new Error(data.error);
           }
+        } catch (error) {
+          console.log("Login error:", error.message);
+          setError("Login failed: " + error.message);
+          setIsLoading(false);
+          setShowLoadingModal(false);
+          return;
         }
       } else {
         // Native platforms don't have CORS issues
@@ -785,13 +721,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    boxShadow:
+      Platform.OS === "web" ? "0px 2px 4px rgba(0, 0, 0, 0.1)" : undefined,
   },
   buttonText: {
     color: "white",

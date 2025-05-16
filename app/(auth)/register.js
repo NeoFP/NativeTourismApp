@@ -688,13 +688,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    boxShadow:
+      Platform.OS === "web" ? "0px 2px 4px rgba(0, 0, 0, 0.1)" : undefined,
   },
   buttonText: {
     color: "white",

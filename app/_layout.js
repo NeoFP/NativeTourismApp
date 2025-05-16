@@ -4,7 +4,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Redirect } from "expo-router";
 import { ThemeProvider } from "../utils/ThemeContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { View } from "react-native";
 
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
@@ -31,24 +30,23 @@ export default function RootLayout() {
     return null; // or a loading spinner
   }
 
-  if (initialRoute) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemeProvider>
-          {/* Redirect to the appropriate route based on user type */}
-          <Redirect href={initialRoute} />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-            }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(admin)" />
-            <Stack.Screen name="(user)" />
-          </Stack>
-        </ThemeProvider>
-      </GestureHandlerRootView>
-    );
-  }
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        {initialRoute && <Redirect href={initialRoute} />}
+        <Stack
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)/login" />
+          <Stack.Screen name="(auth)/register" />
+          <Stack.Screen name="(admin)" />
+          <Stack.Screen name="(user)" />
+          <Stack.Screen name="components/ReviewForm" />
+        </Stack>
+      </ThemeProvider>
+    </GestureHandlerRootView>
+  );
 }
