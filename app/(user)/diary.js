@@ -10,45 +10,37 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { useTheme } from "../../utils/ThemeContext";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { getTravelPlans, getUserId } from "../../utils/mongodb";
+import { getUserId } from "../../utils/mongodb";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
+import { uploadImageToS3, extractLocationFromImage } from "../../utils/awsS3";
+import * as MediaLibrary from "expo-media-library";
 
 const API_URL = "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001";
+const GOOGLE_MAPS_API_KEY = "AIzaSyC4JRnkYeIb6Bcrn6pAMYLtPVNGScCy2ak";
 
 export default function DiaryScreen() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
-  const [plans, setPlans] = useState([]);
-  const [selectedPlan, setSelectedPlan] = useState(null);
   const [diaryTitle, setDiaryTitle] = useState("");
-  const [diaryContent, setDiaryContent] = useState("");
   const [diaries, setDiaries] = useState([]);
   const [loadingDiaries, setLoadingDiaries] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [generating, setGenerating] = useState(false);
 
+  // Image handling state
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [imageData, setImageData] = useState([]);
+
   useEffect(() => {
-    loadTravelPlans();
     loadDiaries();
   }, []);
-
-  const loadTravelPlans = async () => {
-    setLoading(true);
-    try {
-      const userPlans = await getTravelPlans();
-      if (userPlans && userPlans.plans) {
-        setPlans(userPlans.plans);
-      }
-    } catch (error) {
-      console.error("Error loading travel plans:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadDiaries = async () => {
     setLoadingDiaries(true);
@@ -86,9 +78,104 @@ export default function DiaryScreen() {
     }
   };
 
-  const generateDiary = async () => {
-    if (!selectedPlan) {
-      Alert.alert("Error", "Please select a travel plan");
+  // Image selection functionality
+  const pickImages = async () => {
+    try {
+      // Request both media library and camera roll permissions
+      const libraryPermission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const mediaLibraryPermission =
+        await MediaLibrary.requestPermissionsAsync();
+
+      if (!libraryPermission.granted) {
+        Alert.alert(
+          "Permission Required",
+          "You need to grant permission to access your photo library"
+        );
+        return;
+      }
+
+      // Launch image picker with exif option enabled
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        exif: true, // Include image metadata
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        console.log("Selected images:", result.assets.length);
+
+        // Check if we have EXIF data
+        const hasExifData = result.assets.some((asset) => asset.exif);
+        console.log("Images contain EXIF data:", hasExifData);
+
+        setSelectedImages(result.assets);
+
+        // Alert user about the next steps
+        Alert.alert(
+          "Images Selected",
+          `${result.assets.length} images selected. Now we'll extract location data from these images.`,
+          [{ text: "OK", onPress: () => processImages(result.assets) }]
+        );
+      }
+    } catch (error) {
+      console.error("Error picking images:", error);
+      Alert.alert("Error", "Failed to select images");
+    }
+  };
+
+  // Process the selected images to extract metadata
+  const processImages = async (images) => {
+    setUploadingImages(true);
+
+    try {
+      const processedData = [];
+
+      // Process each image
+      for (const image of images) {
+        // Extract location from image metadata
+        const locationData = await extractLocationFromImage(
+          image.uri,
+          GOOGLE_MAPS_API_KEY
+        );
+
+        // Format date from image metadata or use current date
+        const imageDate = image.exif?.DateTimeOriginal
+          ? new Date(image.exif.DateTimeOriginal)
+          : new Date();
+
+        const formattedDate = imageDate.toISOString().split("T")[0]; // YYYY-MM-DD format
+
+        // Add to processed data
+        processedData.push({
+          uri: image.uri,
+          location: locationData.locationName,
+          date: formattedDate,
+          coordinates: locationData.coordinates,
+        });
+      }
+
+      setImageData(processedData);
+
+      // Show confirmation to the user
+      Alert.alert(
+        "Images Processed",
+        `Location data extracted from ${processedData.length} images. Ready to generate your diary.`,
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      console.error("Error processing images:", error);
+      Alert.alert("Error", "Failed to process images");
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  // Upload images to S3 and generate diary
+  const uploadImagesAndGenerateDiary = async () => {
+    if (selectedImages.length === 0 || imageData.length === 0) {
+      Alert.alert("Error", "Please select images first");
       return;
     }
 
@@ -98,69 +185,62 @@ export default function DiaryScreen() {
     }
 
     setGenerating(true);
+
     try {
       const userId = await getUserId();
       if (!userId) {
         throw new Error("User not logged in");
       }
 
-      // Prepare travel plan data for AI
-      const planData = {
-        destination: selectedPlan.destination || "",
-        duration: selectedPlan.duration || "",
-        budget: selectedPlan.budget || "",
-        location: selectedPlan.location ? selectedPlan.location.name : "",
-        activities: selectedPlan.activities || [],
-      };
+      // Upload each image to S3
+      const uploadedImages = [];
 
-      // For demonstration, create a template-based diary if API is not available
-      let generatedDiary = `# ${diaryTitle}\n\n`;
-      generatedDiary += `## My Trip to ${planData.destination}\n\n`;
+      for (let i = 0; i < selectedImages.length; i++) {
+        const image = selectedImages[i];
+        const data = imageData[i];
 
-      generatedDiary += `I had an amazing ${planData.duration} trip to ${planData.location}. `;
-      generatedDiary += `With a budget of $${planData.budget}, I was able to experience the beauty and culture of this wonderful destination.\n\n`;
+        // Upload to S3 and get file name
+        const fileName = await uploadImageToS3(image.uri);
 
-      if (planData.activities && planData.activities.length > 0) {
-        generatedDiary += `## Activities I Enjoyed\n\n`;
-        planData.activities.forEach((activity) => {
-          generatedDiary += `- ${activity}\n`;
+        // Add to uploaded images array
+        uploadedImages.push({
+          image_path: fileName,
+          date: data.date,
+          location: data.location,
         });
-        generatedDiary += "\n";
       }
 
-      generatedDiary += `## Memorable Moments\n\n`;
-      generatedDiary += `The people were friendly and the scenery was breathtaking. I'll never forget the moments I spent exploring the local culture and natural beauty of ${planData.destination}.\n\n`;
+      // Prepare the API request payload
+      const payload = {
+        image_dict: uploadedImages,
+        _id: userId,
+      };
 
-      generatedDiary += `## Would I Go Again?\n\n`;
-      generatedDiary += `Absolutely! This trip was worth every penny and I can't wait to visit again someday.`;
+      console.log("Sending images to API:", payload);
 
-      // If you have an AI endpoint, you would call it here instead
-      // const response = await fetch(`${API_URL}/generate_diary`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify({
-      //     userId,
-      //     title: diaryTitle,
-      //     planData,
-      //   }),
-      // });
+      // Send to backend API
+      const response = await fetch(`${API_URL}/generate_diary`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      // if (!response.ok) {
-      //   throw new Error("Failed to generate diary");
-      // }
+      if (!response.ok) {
+        throw new Error(`Failed to generate diary: ${response.status}`);
+      }
 
-      // const data = await response.json();
-      // const generatedDiary = data.content;
+      const responseData = await response.json();
 
-      // Save the generated diary
+      // Create new diary entry
       const newDiary = {
         id: Date.now().toString(),
         title: diaryTitle,
-        content: generatedDiary,
+        content:
+          responseData.content || "Your travel memories with beautiful images.",
         date: new Date().toISOString(),
-        planId: plans.indexOf(selectedPlan),
+        images: uploadedImages,
       };
 
       // Add to local state
@@ -169,11 +249,11 @@ export default function DiaryScreen() {
 
       // Reset form
       setDiaryTitle("");
-      setSelectedPlan(null);
-      setDiaryContent("");
+      setSelectedImages([]);
+      setImageData([]);
       setShowCreateForm(false);
 
-      // Save to local storage for now (in a real app, you'd save to backend)
+      // Store locally
       try {
         await AsyncStorage.setItem(
           "userDiaries",
@@ -183,10 +263,13 @@ export default function DiaryScreen() {
         console.error("Error saving to storage:", err);
       }
 
-      Alert.alert("Success", "Your travel diary has been generated!");
+      Alert.alert(
+        "Success",
+        "Your travel diary has been created with your images!"
+      );
     } catch (error) {
-      console.error("Error generating diary:", error);
-      Alert.alert("Error", "Failed to generate diary");
+      console.error("Error generating diary with images:", error);
+      Alert.alert("Error", "Failed to create diary with images");
     } finally {
       setGenerating(false);
     }
@@ -228,6 +311,38 @@ export default function DiaryScreen() {
     </TouchableOpacity>
   );
 
+  // Render image thumbnails
+  const renderImageThumbnails = () => {
+    if (selectedImages.length === 0) return null;
+
+    return (
+      <View style={styles.thumbnailsContainer}>
+        <Text style={[styles.thumbnailsTitle, { color: theme.text }]}>
+          Selected Images ({selectedImages.length})
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {selectedImages.map((image, index) => (
+            <View key={index} style={styles.thumbnailWrapper}>
+              <Image source={{ uri: image.uri }} style={styles.thumbnail} />
+              {imageData[index] && (
+                <View
+                  style={[
+                    styles.locationBadge,
+                    { backgroundColor: theme.primary },
+                  ]}
+                >
+                  <Text style={styles.locationText} numberOfLines={1}>
+                    {imageData[index].location}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -260,7 +375,7 @@ export default function DiaryScreen() {
               style={[styles.formContainer, { backgroundColor: theme.card }]}
             >
               <Text style={[styles.formTitle, { color: theme.text }]}>
-                Generate a Travel Diary
+                Create a Travel Diary
               </Text>
 
               <Text style={[styles.inputLabel, { color: theme.text }]}>
@@ -281,63 +396,54 @@ export default function DiaryScreen() {
                 onChangeText={setDiaryTitle}
               />
 
-              <Text style={[styles.inputLabel, { color: theme.text }]}>
-                Select Travel Plan
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.planSelector}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                ) : plans.length > 0 ? (
-                  plans.map((plan, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.planOption,
-                        {
-                          backgroundColor:
-                            selectedPlan === plan
-                              ? theme.primary
-                              : theme.background,
-                          borderColor: theme.border,
-                        },
-                      ]}
-                      onPress={() => setSelectedPlan(plan)}
-                    >
-                      <Text
-                        style={[
-                          styles.planOptionText,
-                          {
-                            color:
-                              selectedPlan === plan ? "#FFFFFF" : theme.text,
-                          },
-                        ]}
-                      >
-                        {plan.destination || `Trip ${index + 1}`}
-                      </Text>
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <View style={styles.noPlansMessage}>
+              {/* Image selection section */}
+              <View style={styles.imageSelectionSection}>
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>
+                  Add Photos to Your Diary
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.imagePickerButton,
+                    {
+                      backgroundColor: theme.primary + "20",
+                      borderColor: theme.primary,
+                    },
+                  ]}
+                  onPress={pickImages}
+                  disabled={uploadingImages}
+                >
+                  <Feather name="image" size={20} color={theme.primary} />
+                  <Text
+                    style={[styles.imagePickerText, { color: theme.primary }]}
+                  >
+                    {selectedImages.length > 0
+                      ? `Selected ${selectedImages.length} images`
+                      : "Select Photos from Device"}
+                  </Text>
+                </TouchableOpacity>
+
+                {uploadingImages && (
+                  <View style={styles.processingContainer}>
+                    <ActivityIndicator size="small" color={theme.primary} />
                     <Text
-                      style={[
-                        styles.noPlansText,
-                        { color: theme.textSecondary },
-                      ]}
+                      style={[styles.processingText, { color: theme.text }]}
                     >
-                      No travel plans found. Create a plan first.
+                      Processing images...
                     </Text>
                   </View>
                 )}
-              </ScrollView>
+
+                {renderImageThumbnails()}
+              </View>
 
               <View style={styles.formActions}>
                 <TouchableOpacity
                   style={[styles.cancelButton, { borderColor: theme.border }]}
-                  onPress={() => setShowCreateForm(false)}
+                  onPress={() => {
+                    setShowCreateForm(false);
+                    setSelectedImages([]);
+                    setImageData([]);
+                  }}
                 >
                   <Text
                     style={[styles.cancelButtonText, { color: theme.text }]}
@@ -351,24 +457,25 @@ export default function DiaryScreen() {
                     styles.generateButton,
                     {
                       backgroundColor: theme.primary,
-                      opacity: generating ? 0.7 : 1,
+                      opacity:
+                        generating || selectedImages.length === 0 ? 0.7 : 1,
                     },
                   ]}
-                  onPress={generateDiary}
-                  disabled={generating}
+                  onPress={uploadImagesAndGenerateDiary}
+                  disabled={generating || selectedImages.length === 0}
                 >
                   {generating ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
                       <Feather
-                        name="book"
+                        name="upload"
                         size={16}
                         color="#FFFFFF"
                         style={styles.buttonIcon}
                       />
                       <Text style={styles.generateButtonText}>
-                        Generate Diary
+                        Create with Photos
                       </Text>
                     </>
                   )}
@@ -414,7 +521,7 @@ export default function DiaryScreen() {
                     { color: theme.textSecondary },
                   ]}
                 >
-                  Generate your first diary to preserve your travel memories
+                  Create your first diary with your travel photos
                 </Text>
               </View>
             )}
@@ -482,27 +589,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     marginBottom: 16,
-  },
-  planSelector: {
-    flexDirection: "row",
-    marginBottom: 20,
-  },
-  planOption: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginRight: 8,
-  },
-  planOptionText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  noPlansMessage: {
-    padding: 12,
-  },
-  noPlansText: {
-    fontSize: 14,
   },
   formActions: {
     flexDirection: "row",
@@ -607,5 +693,69 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
+  },
+  // Image picker styles
+  imageSelectionSection: {
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  imagePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  imagePickerText: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginLeft: 8,
+  },
+  processingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 8,
+  },
+  processingText: {
+    marginLeft: 8,
+    fontSize: 14,
+  },
+  thumbnailsContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  thumbnailsTitle: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  thumbnailWrapper: {
+    position: "relative",
+    marginRight: 8,
+  },
+  thumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  locationBadge: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    right: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    borderRadius: 4,
+  },
+  locationText: {
+    color: "white",
+    fontSize: 10,
+    textAlign: "center",
   },
 });

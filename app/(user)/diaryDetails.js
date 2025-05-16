@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Share,
+  Image,
+  FlatList,
 } from "react-native";
 import { useTheme } from "../../utils/ThemeContext";
 import { useLocalSearchParams, router } from "expo-router";
@@ -64,6 +66,47 @@ export default function DiaryDetails() {
     } catch (error) {
       console.error("Error sharing diary:", error);
     }
+  };
+
+  // Render images from the diary
+  const renderImages = () => {
+    if (!diary || !diary.images || diary.images.length === 0) {
+      return null;
+    }
+
+    return (
+      <View style={styles.imagesSection}>
+        <Text style={[styles.imagesTitle, { color: theme.text }]}>
+          Trip Photos
+        </Text>
+        <FlatList
+          horizontal
+          data={diary.images}
+          keyExtractor={(item, index) => `image-${index}`}
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <View style={styles.imageContainer}>
+              <Image
+                source={{
+                  uri: `https://tourismaiapp2025.s3.amazonaws.com/${item.image_path}`,
+                }}
+                style={styles.diaryImage}
+                resizeMode="cover"
+              />
+              <View
+                style={[
+                  styles.imageInfo,
+                  { backgroundColor: theme.primary + "80" },
+                ]}
+              >
+                <Text style={styles.imageLocation}>{item.location}</Text>
+                <Text style={styles.imageDate}>{item.date}</Text>
+              </View>
+            </View>
+          )}
+        />
+      </View>
+    );
   };
 
   if (loading) {
@@ -133,6 +176,9 @@ export default function DiaryDetails() {
         style={styles.contentContainer}
         contentContainerStyle={styles.content}
       >
+        {/* Display images if present */}
+        {renderImages()}
+
         <View
           style={[styles.markdownContainer, { backgroundColor: theme.card }]}
         >
@@ -254,7 +300,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerContent: {
-    paddingTop: 10,
+    marginTop: 20,
   },
   headerTitle: {
     fontSize: 24,
@@ -269,28 +315,63 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 30,
   },
   markdownContainer: {
-    borderRadius: 16,
     padding: 16,
+    borderRadius: 12,
   },
   actionsContainer: {
-    marginTop: 24,
+    marginTop: 16,
     alignItems: "center",
   },
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
   },
   actionButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     marginLeft: 8,
+  },
+  // New styles for images
+  imagesSection: {
+    marginBottom: 16,
+  },
+  imagesTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  imageContainer: {
+    marginRight: 12,
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+  },
+  diaryImage: {
+    width: 250,
+    height: 180,
+    borderRadius: 12,
+  },
+  imageInfo: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 8,
+  },
+  imageLocation: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  imageDate: {
+    color: "#FFFFFF",
+    fontSize: 12,
   },
 });
