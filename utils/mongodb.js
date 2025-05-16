@@ -14,6 +14,9 @@ export const getUserId = async () => {
 
     // If we don't have it stored, get the user's email and use that as ID
     if (!userId) {
+      console.warn(
+        "No userId found in AsyncStorage, attempting to use email as fallback"
+      );
       const userEmail = await AsyncStorage.getItem("userEmail");
       if (!userEmail) {
         throw new Error("User not logged in");
@@ -23,6 +26,8 @@ export const getUserId = async () => {
       userId = userEmail;
       await AsyncStorage.setItem("userId", userId);
       console.log("Using email as user identifier:", userId);
+    } else {
+      console.log("Using stored MongoDB _id:", userId);
     }
 
     return userId;
