@@ -108,47 +108,38 @@ export default function ProfileTab() {
     }
   };
 
-  // Function to render individual travel plan
+  // Function to render minimal travel plan summary
   const renderPlanItem = ({ item }) => {
-    // Extract hotel name and location
-    const hotelName = item.hotel?.name || "Unnamed Hotel";
-    const location = item.hotel?.district || "Unknown Location";
-
-    // Calculate total cost
-    const totalCost = item.costs?.total_cost || 0;
-
-    // Get duration
-    const duration = item.stay?.num_days || 1;
-    const durationText = `${duration} ${duration === 1 ? "Day" : "Days"}`;
-
-    // Get number of rooms
-    const rooms = item.stay?.num_rooms || 1;
-
+    // Get district from first hotel in first plan
+    let district = "Unknown District";
+    if (Array.isArray(item.plans) && item.plans.length > 0) {
+      district = item.plans[0]?.hotel?.district || district;
+    }
+    const createdAt = item.created_at
+      ? new Date(item.created_at).toLocaleString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
     return (
       <TouchableOpacity
-        style={[styles.planItem, { backgroundColor: theme.cardAlt }]}
+        style={[
+          styles.minimalPlanCard,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
         onPress={() => router.push(`/(user)/planDetails?planId=${item._id}`)}
       >
-        <View style={styles.planHeader}>
-          <Text style={[styles.planTitle, { color: theme.text }]}>
-            {hotelName}
-          </Text>
-          <Text style={[styles.planDate, { color: theme.textSecondary }]}>
-            {durationText}
-          </Text>
-        </View>
-        <Text style={[styles.planBudget, { color: theme.primary }]}>
-          Budget: LKR {totalCost.toLocaleString()}
+        <Text style={[styles.minimalDistrict, { color: theme.text }]}>
+          {district}
         </Text>
-        <Text style={[styles.planLocation, { color: theme.textSecondary }]}>
-          {location} • {rooms} {rooms === 1 ? "Room" : "Rooms"}
-        </Text>
-        <View style={styles.viewDetailsContainer}>
-          <Text style={[styles.viewDetailsText, { color: theme.primary }]}>
-            View details
+        {createdAt && (
+          <Text style={[styles.minimalCreated, { color: theme.textSecondary }]}>
+            {createdAt}
           </Text>
-          <Feather name="arrow-right" size={14} color={theme.primary} />
-        </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -541,31 +532,59 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
   },
-  planItem: {
+  planCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 24,
+    overflow: "hidden",
+    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  optionHeader: {
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  planHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+  },
+  optionTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  optionContent: {
+    padding: 16,
+  },
+  districtText: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  statsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    flexWrap: "wrap",
+  },
+  statItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 16,
     marginBottom: 8,
   },
-  planTitle: {
+  statText: {
     fontSize: 16,
-    fontWeight: "600",
+    marginLeft: 8,
   },
-  planDate: {
-    fontSize: 12,
+  divider: {
+    height: 1,
+    backgroundColor: "#ddd",
+    marginVertical: 16,
   },
   planBudget: {
     fontSize: 15,
     fontWeight: "500",
     marginBottom: 4,
-  },
-  planLocation: {
-    fontSize: 14,
   },
   noPlansContainer: {
     alignItems: "center",
@@ -627,5 +646,27 @@ const styles = StyleSheet.create({
   diaryImageCount: {
     fontSize: 12,
     marginLeft: 4,
+  },
+  planCreated: {
+    marginBottom: 2,
+  },
+  planRecommendations: {
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+  minimalPlanCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 16,
+    elevation: 1,
+  },
+  minimalDistrict: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  minimalCreated: {
+    fontSize: 13,
   },
 });

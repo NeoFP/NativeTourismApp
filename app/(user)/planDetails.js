@@ -100,9 +100,23 @@ export default function PlanDetails() {
     );
   }
 
+  // Defensive checks for missing fields
+  // If the plan has a 'plans' array (as in the budget result), use all of them
+  const planOptions =
+    Array.isArray(plan.plans) && plan.plans.length > 0 ? plan.plans : [plan];
+  const createdAt = plan.created_at
+    ? new Date(plan.created_at).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 80 }]}
+      >
         <TouchableOpacity
           style={[styles.backButtonSmall, { backgroundColor: theme.card }]}
           onPress={() => router.back()}
@@ -110,193 +124,183 @@ export default function PlanDetails() {
           <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
 
-        {/* Hotel Information */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <LinearGradient
-            colors={[theme.primary, theme.primary + "80"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.cardHeader}
-          >
-            <Text style={styles.cardHeaderText}>Hotel Information</Text>
-          </LinearGradient>
-
-          <View style={styles.cardContent}>
-            <Text style={[styles.hotelName, { color: theme.text }]}>
-              {plan.hotel.name}
-            </Text>
-            <Text style={[styles.hotelType, { color: theme.textSecondary }]}>
-              {plan.hotel.type}
-            </Text>
-
-            <View style={styles.infoRow}>
-              <View style={styles.infoItem}>
-                <Feather name="map-pin" size={16} color={theme.primary} />
-                <Text style={[styles.infoText, { color: theme.text }]}>
-                  {plan.hotel.district}
-                </Text>
-              </View>
-
-              <View style={styles.infoItem}>
-                <Feather name="navigation" size={16} color={theme.primary} />
-                <Text style={[styles.infoText, { color: theme.text }]}>
-                  {plan.hotel.distance.toFixed(1)} km away
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Stay Details */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <LinearGradient
-            colors={[theme.primary, theme.primary + "80"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.cardHeader}
-          >
-            <Text style={styles.cardHeaderText}>Stay Details</Text>
-          </LinearGradient>
-
-          <View style={styles.cardContent}>
-            <View style={styles.stayDetailsGrid}>
-              <View style={styles.stayDetailItem}>
-                <Feather name="calendar" size={20} color={theme.primary} />
-                <Text style={[styles.stayDetailValue, { color: theme.text }]}>
-                  {plan.stay.num_days}
-                </Text>
-                <Text
-                  style={[
-                    styles.stayDetailLabel,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Days
-                </Text>
-              </View>
-
-              <View style={styles.stayDetailItem}>
-                <Feather name="home" size={20} color={theme.primary} />
-                <Text style={[styles.stayDetailValue, { color: theme.text }]}>
-                  {plan.stay.num_rooms}
-                </Text>
-                <Text
-                  style={[
-                    styles.stayDetailLabel,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Rooms
-                </Text>
-              </View>
-
-              <View style={styles.stayDetailItem}>
-                <Feather name="users" size={20} color={theme.primary} />
-                <Text style={[styles.stayDetailValue, { color: theme.text }]}>
-                  {plan.stay.total_people || plan.stay.num_rooms * 2}
-                </Text>
-                <Text
-                  style={[
-                    styles.stayDetailLabel,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  People
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Cost Breakdown */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <LinearGradient
-            colors={[theme.primary, theme.primary + "80"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.cardHeader}
-          >
-            <Text style={styles.cardHeaderText}>Cost Breakdown</Text>
-          </LinearGradient>
-
-          <View style={styles.cardContent}>
-            <View style={styles.costItem}>
-              <Text style={[styles.costLabel, { color: theme.textSecondary }]}>
-                Accommodation
-              </Text>
-              <Text style={[styles.costValue, { color: theme.text }]}>
-                LKR {plan.costs.accommodation_cost.toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={styles.costItem}>
-              <Text style={[styles.costLabel, { color: theme.textSecondary }]}>
-                Food
-              </Text>
-              <Text style={[styles.costValue, { color: theme.text }]}>
-                LKR {plan.costs.food_cost.toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={styles.costItem}>
-              <Text style={[styles.costLabel, { color: theme.textSecondary }]}>
-                Travel
-              </Text>
-              <Text style={[styles.costValue, { color: theme.text }]}>
-                LKR {plan.costs.travel_cost.toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={[styles.costItem, styles.totalCostItem]}>
-              <Text style={[styles.totalCostLabel, { color: theme.text }]}>
-                Total Cost
-              </Text>
-              <Text style={[styles.totalCostValue, { color: theme.primary }]}>
-                LKR {plan.costs.total_cost.toLocaleString()}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Recommendations */}
-        <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <LinearGradient
-            colors={[theme.primary, theme.primary + "80"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.cardHeader}
-          >
-            <Text style={styles.cardHeaderText}>Recommendations</Text>
-          </LinearGradient>
-
-          <View style={styles.cardContent}>
-            {plan.recommendations && plan.recommendations.length > 0 ? (
-              plan.recommendations.map((recommendation, index) => (
-                <View key={index} style={styles.recommendationItem}>
-                  <Feather
-                    name="check-circle"
-                    size={16}
-                    color={theme.primary}
-                  />
-                  <Text
-                    style={[styles.recommendationText, { color: theme.text }]}
-                  >
-                    {recommendation}
-                  </Text>
-                </View>
-              ))
-            ) : (
-              <Text
+        {planOptions.map((planData, idx) => {
+          const hotel = planData.hotel || {};
+          const stay = planData.stay || {};
+          const costs = planData.costs || {};
+          const recommendations = planData.recommendations || [];
+          return (
+            <View key={idx} style={{ marginBottom: 24 }}>
+              {/* Option Header */}
+              <View
                 style={[
-                  styles.noRecommendationsText,
-                  { color: theme.textSecondary },
+                  styles.optionHeader,
+                  { backgroundColor: theme.primary },
                 ]}
               >
-                No recommendations available
-              </Text>
-            )}
-          </View>
-        </View>
+                <Text style={styles.optionTitle}>Option {idx + 1}</Text>
+              </View>
+
+              {/* Hotel Information and Stats */}
+              <View style={[styles.card, { backgroundColor: theme.card }]}>
+                <View style={styles.cardContent}>
+                  <Text style={[styles.hotelName, { color: theme.text }]}>
+                    {hotel.name || "Unnamed Hotel"}
+                  </Text>
+                  <Text
+                    style={[styles.hotelType, { color: theme.textSecondary }]}
+                  >
+                    {hotel.type || "Type N/A"} •{" "}
+                    {hotel.district || "Unknown District"}
+                  </Text>
+                  <View style={styles.statsContainer}>
+                    <View style={styles.statItem}>
+                      <Feather name="users" size={16} color={theme.primary} />
+                      <Text style={[styles.statText, { color: theme.text }]}>
+                        {stay.num_rooms || 1}{" "}
+                        {stay.num_rooms === 1 ? "Room" : "Rooms"}
+                      </Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Feather
+                        name="calendar"
+                        size={16}
+                        color={theme.primary}
+                      />
+                      <Text style={[styles.statText, { color: theme.text }]}>
+                        {stay.num_days || 1}{" "}
+                        {stay.num_days === 1 ? "Day" : "Days"}
+                      </Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Feather name="map-pin" size={16} color={theme.primary} />
+                      <Text style={[styles.statText, { color: theme.text }]}>
+                        {hotel.distance !== undefined
+                          ? hotel.distance.toFixed(1)
+                          : "-"}{" "}
+                        km
+                      </Text>
+                    </View>
+                  </View>
+                  {createdAt && idx === 0 && (
+                    <Text
+                      style={[
+                        styles.createdAt,
+                        {
+                          color: theme.textSecondary,
+                          fontSize: 13,
+                          marginTop: 8,
+                        },
+                      ]}
+                    >
+                      Created: {createdAt}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Cost Breakdown */}
+              <View style={[styles.card, { backgroundColor: theme.card }]}>
+                <View style={styles.cardContent}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Cost Breakdown
+                  </Text>
+                  <View style={styles.costItem}>
+                    <Text
+                      style={[styles.costLabel, { color: theme.textSecondary }]}
+                    >
+                      Accommodation
+                    </Text>
+                    <Text style={[styles.costValue, { color: theme.text }]}>
+                      LKR{" "}
+                      {costs.accommodation_cost !== undefined
+                        ? costs.accommodation_cost.toLocaleString()
+                        : "-"}
+                    </Text>
+                  </View>
+                  <View style={styles.costItem}>
+                    <Text
+                      style={[styles.costLabel, { color: theme.textSecondary }]}
+                    >
+                      Food
+                    </Text>
+                    <Text style={[styles.costValue, { color: theme.text }]}>
+                      LKR{" "}
+                      {costs.food_cost !== undefined
+                        ? costs.food_cost.toLocaleString()
+                        : "-"}
+                    </Text>
+                  </View>
+                  <View style={styles.costItem}>
+                    <Text
+                      style={[styles.costLabel, { color: theme.textSecondary }]}
+                    >
+                      Travel
+                    </Text>
+                    <Text style={[styles.costValue, { color: theme.text }]}>
+                      LKR{" "}
+                      {costs.travel_cost !== undefined
+                        ? costs.travel_cost.toLocaleString()
+                        : "-"}
+                    </Text>
+                  </View>
+                  <View style={[styles.costItem, styles.totalCostItem]}>
+                    <Text
+                      style={[styles.totalCostLabel, { color: theme.text }]}
+                    >
+                      Total Cost
+                    </Text>
+                    <Text
+                      style={[styles.totalCostValue, { color: theme.primary }]}
+                    >
+                      LKR{" "}
+                      {costs.total_cost !== undefined
+                        ? costs.total_cost.toLocaleString()
+                        : "-"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Recommendations */}
+              <View style={[styles.card, { backgroundColor: theme.card }]}>
+                <View style={styles.cardContent}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Recommendations
+                  </Text>
+                  {recommendations && recommendations.length > 0 ? (
+                    recommendations.map((recommendation, i) => (
+                      <View key={i} style={styles.recommendationItem}>
+                        <Feather
+                          name="check-circle"
+                          size={16}
+                          color={theme.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.recommendationText,
+                            { color: theme.text },
+                          ]}
+                        >
+                          {recommendation}
+                        </Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text
+                      style={[
+                        styles.noRecommendationsText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      No recommendations available
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -466,5 +470,40 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  createdAt: {
+    fontSize: 13,
+    marginBottom: 8,
+    textAlign: "right",
+  },
+  optionHeader: {
+    padding: 16,
+    alignItems: "center",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  optionTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 8,
+  },
+  statItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statText: {
+    fontSize: 14,
+    marginLeft: 8,
   },
 });
