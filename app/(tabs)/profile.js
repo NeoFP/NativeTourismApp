@@ -8,12 +8,13 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
 } from "react-native";
 import { useTheme } from "../../utils/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { getTravelPlans } from "../../utils/mongodb";
+import { getTravelPlans, getUserDiaries } from "../../utils/mongodb";
 
 export default function ProfileTab() {
   const { theme } = useTheme();
@@ -23,6 +24,9 @@ export default function ProfileTab() {
   const [plans, setPlans] = useState([]);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
+  const [diaries, setDiaries] = useState([]);
+  const [loadingDiaries, setLoadingDiaries] = useState(false);
+  const [showDiaries, setShowDiaries] = useState(false);
 
   useEffect(() => {
     // Load user data
@@ -67,6 +71,22 @@ export default function ProfileTab() {
     }
   };
 
+  const fetchUserDiaries = async () => {
+    setLoadingDiaries(true);
+    try {
+      const userDiaries = await getUserDiaries();
+      if (userDiaries && userDiaries.diaries) {
+        setDiaries(userDiaries.diaries);
+      }
+      setShowDiaries(true);
+    } catch (error) {
+      console.error("Error fetching user diaries:", error);
+      Alert.alert("Error", "Failed to load travel diaries");
+    } finally {
+      setLoadingDiaries(false);
+    }
+  };
+
   const handleNavigation = (route) => {
     router.push(`/(auth)/${route}`);
   };
@@ -89,35 +109,103 @@ export default function ProfileTab() {
   };
 
   // Function to render individual travel plan
-  const renderPlanItem = ({ item, index }) => (
-    <TouchableOpacity
-      style={[styles.planItem, { backgroundColor: theme.cardAlt }]}
-      onPress={() => router.push(`/(user)/planDetails?planId=${index}`)}
-    >
-      <View style={styles.planHeader}>
-        <Text style={[styles.planTitle, { color: theme.text }]}>
-          {item.destination || "Trip"}
+  const renderPlanItem = ({ item }) => {
+    // Extract hotel name and location
+    const hotelName = item.hotel?.name || "Unnamed Hotel";
+    const location = item.hotel?.district || "Unknown Location";
+
+    // Calculate total cost
+    const totalCost = item.costs?.total_cost || 0;
+
+    // Get duration
+    const duration = item.stay?.num_days || 1;
+    const durationText = `${duration} ${duration === 1 ? "Day" : "Days"}`;
+
+    // Get number of rooms
+    const rooms = item.stay?.num_rooms || 1;
+
+    return (
+      <TouchableOpacity
+        style={[styles.planItem, { backgroundColor: theme.cardAlt }]}
+        onPress={() => router.push(`/(user)/planDetails?planId=${item._id}`)}
+      >
+        <View style={styles.planHeader}>
+          <Text style={[styles.planTitle, { color: theme.text }]}>
+            {hotelName}
+          </Text>
+          <Text style={[styles.planDate, { color: theme.textSecondary }]}>
+            {durationText}
+          </Text>
+        </View>
+        <Text style={[styles.planBudget, { color: theme.primary }]}>
+          Budget: LKR {totalCost.toLocaleString()}
         </Text>
-        <Text style={[styles.planDate, { color: theme.textSecondary }]}>
-          {item.duration || "Duration N/A"}
-        </Text>
-      </View>
-      <Text style={[styles.planBudget, { color: theme.primary }]}>
-        Budget: ${item.budget || "N/A"}
-      </Text>
-      {item.location && (
         <Text style={[styles.planLocation, { color: theme.textSecondary }]}>
-          {item.location.name || "Location N/A"}
+          {location} • {rooms} {rooms === 1 ? "Room" : "Rooms"}
         </Text>
-      )}
-      <View style={styles.viewDetailsContainer}>
-        <Text style={[styles.viewDetailsText, { color: theme.primary }]}>
-          View details
+        <View style={styles.viewDetailsContainer}>
+          <Text style={[styles.viewDetailsText, { color: theme.primary }]}>
+            View details
+          </Text>
+          <Feather name="arrow-right" size={14} color={theme.primary} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Function to render individual diary entry
+  const renderDiaryItem = ({ item, index }) => {
+    // Extract the first location from images if available
+    const firstLocation =
+      item.images && item.images.length > 0
+        ? item.images[0].location
+        : "Unknown Location";
+
+    // Extract the first date from images if available
+    const firstDate =
+      item.images && item.images.length > 0
+        ? item.images[0].date
+        : new Date(item.created_at).toLocaleDateString();
+
+    // Get the first few words of content for preview
+    const contentPreview =
+      item.content
+        .replace(/\*\*/g, "") // Remove markdown formatting
+        .split(" ")
+        .slice(0, 15)
+        .join(" ") + "...";
+
+    return (
+      <TouchableOpacity
+        style={[styles.diaryItem, { backgroundColor: theme.cardAlt }]}
+        onPress={() => router.push(`/(user)/diaryDetails?diaryId=${item._id}`)}
+      >
+        <View style={styles.diaryHeader}>
+          <Text style={[styles.diaryTitle, { color: theme.text }]}>
+            {firstLocation}
+          </Text>
+          <Text style={[styles.diaryDate, { color: theme.textSecondary }]}>
+            {firstDate}
+          </Text>
+        </View>
+        <Text style={[styles.diaryPreview, { color: theme.textSecondary }]}>
+          {contentPreview}
         </Text>
-        <Feather name="arrow-right" size={14} color={theme.primary} />
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.diaryImageCountContainer}>
+          <Feather name="image" size={14} color={theme.primary} />
+          <Text style={[styles.diaryImageCount, { color: theme.primary }]}>
+            {item.images ? item.images.length : 0} photos
+          </Text>
+        </View>
+        <View style={styles.viewDetailsContainer}>
+          <Text style={[styles.viewDetailsText, { color: theme.primary }]}>
+            View diary
+          </Text>
+          <Feather name="arrow-right" size={14} color={theme.primary} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -180,6 +268,58 @@ export default function ProfileTab() {
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => {
+              if (!showDiaries) {
+                fetchUserDiaries();
+              } else {
+                setShowDiaries(!showDiaries);
+              }
+            }}
+          >
+            <Feather name="book" size={20} color={theme.primary} />
+            <Text style={[styles.menuText, { color: theme.text }]}>
+              Travel Diaries
+            </Text>
+            <Feather
+              name={showDiaries ? "chevron-down" : "chevron-right"}
+              size={20}
+              color={theme.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {loadingDiaries && (
+            <View style={styles.plansLoadingContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text style={[styles.plansLoadingText, { color: theme.text }]}>
+                Loading your travel diaries...
+              </Text>
+            </View>
+          )}
+
+          {showDiaries && !loadingDiaries && (
+            <View style={styles.diariesContainer}>
+              {diaries && diaries.length > 0 ? (
+                <FlatList
+                  data={diaries}
+                  renderItem={renderDiaryItem}
+                  keyExtractor={(item) => `diary-${item._id}`}
+                  scrollEnabled={false}
+                />
+              ) : (
+                <View style={styles.noPlansContainer}>
+                  <Feather name="info" size={20} color={theme.textSecondary} />
+                  <Text
+                    style={[styles.noPlansText, { color: theme.textSecondary }]}
+                  >
+                    No travel diaries found
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
               if (!showPlans) {
                 fetchUserPlans();
               } else {
@@ -213,7 +353,7 @@ export default function ProfileTab() {
                 <FlatList
                   data={plans}
                   renderItem={renderPlanItem}
-                  keyExtractor={(item, index) => `plan-${index}`}
+                  keyExtractor={(item) => `plan-${item._id}`}
                   scrollEnabled={false}
                 />
               ) : (
@@ -387,6 +527,10 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     paddingHorizontal: 8,
   },
+  diariesContainer: {
+    marginVertical: 8,
+    paddingHorizontal: 8,
+  },
   plansLoadingContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -451,5 +595,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     marginRight: 6,
+  },
+  diaryItem: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  diaryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  diaryTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  diaryDate: {
+    fontSize: 12,
+  },
+  diaryPreview: {
+    fontSize: 14,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  diaryImageCountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  diaryImageCount: {
+    fontSize: 12,
+    marginLeft: 4,
   },
 });

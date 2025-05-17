@@ -77,7 +77,7 @@ export const getTravelPlans = async () => {
     }
 
     const response = await fetch(
-      `${API_URL}/get_user_plans?_id=${encodeURIComponent(userId)}`,
+      `${API_URL}/get_user_travel_plans/${encodeURIComponent(userId)}`,
       {
         method: "GET",
         headers: {
@@ -94,6 +94,36 @@ export const getTravelPlans = async () => {
     return await response.json();
   } catch (error) {
     console.error("Error fetching travel plans:", error);
+    throw error;
+  }
+};
+
+// Get user diaries from MongoDB
+export const getUserDiaries = async () => {
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      throw new Error("User ID not found");
+    }
+
+    const response = await fetch(
+      `${API_URL}/get_user_diaries/${encodeURIComponent(userId)}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch user diaries");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching user diaries:", error);
     throw error;
   }
 };
