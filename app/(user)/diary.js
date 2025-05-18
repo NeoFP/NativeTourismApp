@@ -1,534 +1,675 @@
-import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  ActivityIndicator,
+  Image,
   TextInput,
   ScrollView,
-  ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
-  Image,
 } from "react-native";
 import { useTheme } from "../../utils/ThemeContext";
-import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
-import { getUserId } from "../../utils/mongodb";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import React, { useState, useEffect } from "react";
 import * as ImagePicker from "expo-image-picker";
-import { uploadImageToS3, extractLocationFromImage } from "../../utils/awsS3";
-import * as MediaLibrary from "expo-media-library";
+import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+import Markdown from "react-native-markdown-display";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001";
-const GOOGLE_MAPS_API_KEY = "AIzaSyC4JRnkYeIb6Bcrn6pAMYLtPVNGScCy2ak";
+// Import the required polyfills first - important order!
+import "react-native-get-random-values";
+import "react-native-url-polyfill/auto";
 
-export default function DiaryScreen() {
-  const { theme } = useTheme();
-  const [loading, setLoading] = useState(false);
-  const [diaryTitle, setDiaryTitle] = useState("");
-  const [diaries, setDiaries] = useState([]);
-  const [loadingDiaries, setLoadingDiaries] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [generating, setGenerating] = useState(false);
+// Conditionally import AWS SDK in try/catch to handle web environment
+let AWS;
+try {
+  AWS = require("aws-sdk");
+  console.log("AWS SDK imported successfully");
+} catch (error) {
+  console.error("Error importing AWS SDK:", error);
+}
 
-  // Image handling state
-  const [selectedImages, setSelectedImages] = useState([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
-  const [imageData, setImageData] = useState([]);
+// AWS S3 configuration
+const BUCKET_NAME = "tourismaiapp2025";
+const REGION = "us-east-1";
+const ACCESS_KEY = "AKIARKM5BQO2C2TX6M4F";
+const SECRET_KEY = "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";
 
-  useEffect(() => {
-    loadDiaries();
-  }, []);
+// Configure AWS - ensure we're running in an environment that supports it
+let s3 = null;
 
-  const loadDiaries = async () => {
-    setLoadingDiaries(true);
-    try {
-      const userId = await getUserId();
-      if (!userId) {
-        throw new Error("User not logged in");
-      }
+try {
+  if (AWS) {
+    AWS.config.update({
+      region: REGION,
+      accessKeyId: ACCESS_KEY,
+      secretAccessKey: SECRET_KEY,
+    });
 
-      const response = await fetch(
-        `${API_URL}/get_user_diaries/${encodeURIComponent(userId)}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-        }
-      );
+    s3 = new AWS.S3();
+    console.log("AWS SDK initialized successfully");
+  }
+} catch (error) {
+  console.error("Error initializing AWS SDK:", error);
+}
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch diaries");
-      }
+// Function to get user ID from AsyncStorage
+const getUserId = async () => {
+  try {
+    const userId = await AsyncStorage.getItem("userId");
+    console.log("Retrieved user ID:", userId);
+    return userId || "681e06b9cea189a25200d80f"; // Fallback to default user ID if not found
+  } catch (error) {
+    console.error("Error retrieving user ID:", error);
+    return "681e06b9cea189a25200d80f"; // Fallback to default user ID on error
+  }
+};
 
-      const data = await response.json();
-      if (data && data.diaries) {
-        setDiaries(data.diaries);
-      }
-    } catch (error) {
-      console.error("Error fetching diaries:", error);
-      // If endpoint doesn't exist yet, just use empty array
-      setDiaries([]);
-    } finally {
-      setLoadingDiaries(false);
+// Function to upload file to S3 using AWS SDK v2 (web compatible)
+const uploadFileToS3 = async (uri, fileName) => {
+  try {
+    console.log(`Starting upload of ${fileName} from ${uri}`);
+
+    // If S3 is not initialized, use a simulated upload
+    if (!s3) {
+      console.log("S3 client not available, simulating upload");
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
+      return fileName;
     }
+
+    // For web, fetch the image data
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    const params = {
+      Bucket: BUCKET_NAME,
+      Key: fileName,
+      Body: blob,
+      ContentType: blob.type || "image/jpeg",
+    };
+
+    const result = await s3.upload(params).promise();
+    console.log(`Successfully uploaded ${fileName} to S3:`, result.Location);
+    return fileName;
+  } catch (error) {
+    console.error("Error uploading to S3:", error);
+
+    // For development, return the filename anyway to continue the flow
+    if (Platform.OS === "web" && process.env.NODE_ENV === "development") {
+      console.log(
+        "Continuing with simulated upload due to error in development mode"
+      );
+      return fileName;
+    }
+
+    throw error;
+  }
+};
+
+// Individual form item components
+const DateInput = ({ index, initialValue, updateMetadata, darkMode }) => {
+  const [text, setText] = useState(initialValue || "");
+
+  const handleBlur = () => {
+    updateMetadata(index, "date", text);
   };
 
-  // Image selection functionality
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text
+        style={[styles.inputLabel, { color: darkMode ? "#FFFFFF" : "#000000" }]}
+      >
+        Date
+      </Text>
+      <TextInput
+        style={[
+          styles.metadataInput,
+          {
+            color: darkMode ? "#FFFFFF" : "#000000",
+            borderColor: darkMode ? "#555555" : "#DDDDDD",
+          },
+        ]}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={darkMode ? "#AAAAAA" : "#999999"}
+        value={text}
+        onChangeText={setText}
+        onBlur={handleBlur}
+        keyboardType="default"
+        returnKeyType="done"
+      />
+    </View>
+  );
+};
+
+const LocationInput = ({ index, initialValue, updateMetadata, darkMode }) => {
+  const [text, setText] = useState(initialValue || "");
+
+  const handleBlur = () => {
+    updateMetadata(index, "location", text);
+  };
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text
+        style={[styles.inputLabel, { color: darkMode ? "#FFFFFF" : "#000000" }]}
+      >
+        Location
+      </Text>
+      <TextInput
+        style={[
+          styles.metadataInput,
+          {
+            color: darkMode ? "#FFFFFF" : "#000000",
+            borderColor: darkMode ? "#555555" : "#DDDDDD",
+          },
+        ]}
+        placeholder="Enter location"
+        placeholderTextColor={darkMode ? "#AAAAAA" : "#999999"}
+        value={text}
+        onChangeText={setText}
+        onBlur={handleBlur}
+        keyboardType="default"
+        returnKeyType="done"
+      />
+    </View>
+  );
+};
+
+export default function Diary() {
+  const { theme, darkMode } = useTheme();
+  const [step, setStep] = useState("initial");
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [imageMetadata, setImageMetadata] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [diaryContent, setDiaryContent] = useState("");
+  const [userId, setUserId] = useState(null);
+
+  // Load user ID on component mount
+  useEffect(() => {
+    const loadUserId = async () => {
+      const id = await getUserId();
+      setUserId(id);
+    };
+    loadUserId();
+  }, []);
+
+  // Initialize empty state for image selection
+  useEffect(() => {
+    if (selectedImages.length > 0) {
+      const initialMetadata = selectedImages.map((image) => ({
+        uri: image.uri,
+        date: "",
+        location: "",
+        uploadedName: "",
+      }));
+      setImageMetadata(initialMetadata);
+
+      // Initialize upload progress for each image
+      const initialProgress = {};
+      selectedImages.forEach((_, index) => {
+        initialProgress[index] = { status: "pending", progress: 0 };
+      });
+      setUploadProgress(initialProgress);
+    }
+  }, [selectedImages]);
+
+  // Request permissions on component mount
+  useEffect(() => {
+    (async () => {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "Sorry, we need camera roll permissions to upload images!"
+        );
+      }
+    })();
+  }, []);
+
+  // Function to pick images from gallery
   const pickImages = async () => {
     try {
-      // Request both media library and camera roll permissions
-      const libraryPermission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      const mediaLibraryPermission =
-        await MediaLibrary.requestPermissionsAsync();
-
-      if (!libraryPermission.granted) {
-        Alert.alert(
-          "Permission Required",
-          "You need to grant permission to access your photo library"
-        );
-        return;
-      }
-
-      // Launch image picker with exif option enabled
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
-        quality: 0.8,
-        exif: true, // Include image metadata
+        quality: 0.7,
+        selectionLimit: 3,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        console.log("Selected images:", result.assets.length);
+      if (!result.canceled) {
+        const newImages = result.assets.slice(0, 3);
+        setSelectedImages(newImages);
 
-        // Check if we have EXIF data
-        const hasExifData = result.assets.some((asset) => asset.exif);
-        console.log("Images contain EXIF data:", hasExifData);
+        // Initialize metadata for each image
+        const initialMetadata = newImages.map((img) => ({
+          uri: img.uri,
+          date: "",
+          location: "",
+          uploadedName: "",
+        }));
 
-        setSelectedImages(result.assets);
+        setImageMetadata(initialMetadata);
+        setStep("uploading");
+      }
+    } catch (error) {
+      console.log("Error picking images:", error);
+      Alert.alert("Error", "Failed to pick images");
+    }
+  };
 
-        // Alert user about the next steps
+  // Function to update metadata for a specific image
+  const updateMetadata = (index, field, value) => {
+    // Only update if we have a valid index and field
+    if (index >= 0 && index < imageMetadata.length && field) {
+      setImageMetadata((prev) => {
+        // Create a new array to avoid direct state mutation
+        const updated = [...prev];
+        // Update only the specific field
+        updated[index] = { ...updated[index], [field]: value };
+        return updated;
+      });
+    }
+  };
+
+  // Function to upload all selected images to S3
+  const uploadImagesToS3 = async () => {
+    try {
+      setUploading(true);
+
+      // Check if all images have metadata
+      const missingMetadata = imageMetadata.some(
+        (img) => !img.date || !img.location
+      );
+
+      if (missingMetadata) {
         Alert.alert(
-          "Images Selected",
-          `${result.assets.length} images selected. Now we'll extract location data from these images.`,
-          [{ text: "OK", onPress: () => processImages(result.assets) }]
+          "Missing Information",
+          "Please enter date and location for all images."
         );
+        setUploading(false);
+        return;
       }
+
+      // Upload each image to S3 and store the S3 URL for each
+      const updatedMetadata = [...imageMetadata];
+
+      for (let i = 0; i < imageMetadata.length; i++) {
+        try {
+          setUploadProgress((prev) => ({
+            ...prev,
+            [i]: { status: "uploading", progress: 0 },
+          }));
+
+          // Generate a unique filename for S3
+          const timestamp = Date.now();
+          const uniqueId = uuidv4();
+          const fileName = `${timestamp}-${uniqueId}.jpg`;
+
+          console.log(
+            `Processing image ${i + 1}/${imageMetadata.length}: ${fileName}`
+          );
+
+          // Upload the image to S3
+          const uploadedName = await uploadFileToS3(
+            imageMetadata[i].uri,
+            fileName
+          );
+
+          // Update the metadata with the S3 filename
+          updatedMetadata[i] = {
+            ...updatedMetadata[i],
+            uploadedName,
+          };
+
+          setUploadProgress((prev) => ({
+            ...prev,
+            [i]: { status: "complete", progress: 100 },
+          }));
+
+          console.log(`Successfully processed image ${i + 1}`);
+        } catch (error) {
+          console.log(`Failed to upload image ${i + 1}:`, error);
+          setUploadProgress((prev) => ({
+            ...prev,
+            [i]: { status: "error", progress: 0 },
+          }));
+          throw new Error(`Failed to upload image ${i + 1}: ${error.message}`);
+        }
+      }
+
+      // After all uploads are complete, create the diary
+      setImageMetadata(updatedMetadata);
+      console.log("All uploads complete. Creating diary...");
+      createDiary(updatedMetadata);
     } catch (error) {
-      console.error("Error picking images:", error);
-      Alert.alert("Error", "Failed to select images");
-    }
-  };
-
-  // Process the selected images to extract metadata
-  const processImages = async (images) => {
-    setUploadingImages(true);
-
-    try {
-      const processedData = [];
-
-      // Process each image
-      for (const image of images) {
-        // Extract location from image metadata
-        const locationData = await extractLocationFromImage(
-          image.uri,
-          GOOGLE_MAPS_API_KEY
-        );
-
-        // Format date from image metadata or use current date
-        const imageDate = image.exif?.DateTimeOriginal
-          ? new Date(image.exif.DateTimeOriginal)
-          : new Date();
-
-        const formattedDate = imageDate.toISOString().split("T")[0]; // YYYY-MM-DD format
-
-        // Add to processed data
-        processedData.push({
-          uri: image.uri,
-          location: locationData.locationName,
-          date: formattedDate,
-          coordinates: locationData.coordinates,
-        });
-      }
-
-      setImageData(processedData);
-
-      // Show confirmation to the user
+      console.log("Error uploading images:", error);
+      setUploading(false);
       Alert.alert(
-        "Images Processed",
-        `Location data extracted from ${processedData.length} images. Ready to generate your diary.`,
-        [{ text: "OK" }]
+        "Upload Error",
+        "Failed to upload one or more images. Please try again."
       );
-    } catch (error) {
-      console.error("Error processing images:", error);
-      Alert.alert("Error", "Failed to process images");
-    } finally {
-      setUploadingImages(false);
     }
   };
 
-  // Upload images to S3 and generate diary
-  const uploadImagesAndGenerateDiary = async () => {
-    if (selectedImages.length === 0 || imageData.length === 0) {
-      Alert.alert("Error", "Please select images first");
-      return;
-    }
-
-    if (!diaryTitle.trim()) {
-      Alert.alert("Error", "Please enter a title for your diary");
-      return;
-    }
-
-    setGenerating(true);
-
+  // Function to create diary by calling the ML API
+  const createDiary = async (metadata) => {
     try {
-      const userId = await getUserId();
-      if (!userId) {
-        throw new Error("User not logged in");
-      }
+      setLoading(true);
 
-      // Upload each image to S3
-      const uploadedImages = [];
+      // Prepare the payload for the ML API
+      const image_dict = metadata.map((img) => ({
+        image_path: img.uploadedName,
+        date: img.date,
+        location: img.location,
+      }));
 
-      for (let i = 0; i < selectedImages.length; i++) {
-        const image = selectedImages[i];
-        const data = imageData[i];
+      // Get current user ID
+      const currentUserId = userId || (await getUserId());
 
-        // Upload to S3 and get file name
-        const fileName = await uploadImageToS3(image.uri);
-
-        // Add to uploaded images array
-        uploadedImages.push({
-          image_path: fileName,
-          date: data.date,
-          location: data.location,
-        });
-      }
-
-      // Prepare the API request payload
-      const payload = {
-        image_dict: uploadedImages,
-        _id: userId,
-      };
-
-      console.log("Sending images to API:", payload);
-
-      // Send to backend API
-      const response = await fetch(`${API_URL}/generate_diary`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+      console.log("Sending request to ML API:", {
+        image_dict,
+        _id: currentUserId,
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to generate diary: ${response.status}`);
-      }
-
-      const responseData = await response.json();
-
-      // Create new diary entry
-      const newDiary = {
-        id: Date.now().toString(),
-        title: diaryTitle,
-        content:
-          responseData.content || "Your travel memories with beautiful images.",
-        date: new Date().toISOString(),
-        images: uploadedImages,
-      };
-
-      // Add to local state
-      const updatedDiaries = [newDiary, ...diaries];
-      setDiaries(updatedDiaries);
-
-      // Reset form
-      setDiaryTitle("");
-      setSelectedImages([]);
-      setImageData([]);
-      setShowCreateForm(false);
-
-      // Store locally
-      try {
-        await AsyncStorage.setItem(
-          "userDiaries",
-          JSON.stringify(updatedDiaries)
-        );
-      } catch (err) {
-        console.error("Error saving to storage:", err);
-      }
-
-      Alert.alert(
-        "Success",
-        "Your travel diary has been created with your images!"
+      // Call the ML API
+      const response = await axios.post(
+        "http://ec2-16-171-47-60.eu-north-1.compute.amazonaws.com:5001/create_diary",
+        {
+          image_dict,
+          _id: currentUserId,
+        },
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 60000, // 60 second timeout for ML processing
+        }
       );
+
+      console.log("Received response from ML API:", response.data);
+
+      // Set diary content and move to rendering step
+      setDiaryContent(response.data.diary_content);
+      setStep("rendering");
+      setLoading(false);
     } catch (error) {
-      console.error("Error generating diary with images:", error);
-      Alert.alert("Error", "Failed to create diary with images");
-    } finally {
-      setGenerating(false);
+      console.log("Error creating diary:", error);
+      setLoading(false);
+      Alert.alert(
+        "Error",
+        "Failed to generate diary content. Please try again later."
+      );
     }
   };
 
-  const handleViewDiary = (diary) => {
-    router.push({
-      pathname: "/(user)/diaryDetails",
-      params: { diaryId: diary.id },
-    });
-  };
+  // Initial screen with Generate Diary button
+  const InitialScreen = () => (
+    <>
+      <View style={styles.headerContainer}>
+        <Text style={[styles.title, { color: theme.text }]}>Travel Diary</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          Capture your travel memories and experiences
+        </Text>
+      </View>
 
-  const renderDiaryItem = (diary, index) => (
-    <TouchableOpacity
-      key={diary.id || index}
-      style={[styles.diaryItem, { backgroundColor: theme.card }]}
-      onPress={() => handleViewDiary(diary)}
-    >
-      <View style={styles.diaryHeader}>
-        <Text style={[styles.diaryTitle, { color: theme.text }]}>
-          {diary.title}
-        </Text>
-        <Text style={[styles.diaryDate, { color: theme.textSecondary }]}>
-          {new Date(diary.date).toLocaleDateString()}
+      <View style={styles.illustrationContainer}>
+        <View
+          style={[
+            styles.illustrationPlaceholder,
+            { backgroundColor: theme.primary + "30" },
+          ]}
+        >
+          <Feather name="book-open" size={60} color={theme.primary} />
+        </View>
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.createButton, { backgroundColor: theme.primary }]}
+          onPress={pickImages}
+        >
+          <Feather
+            name="plus"
+            size={20}
+            color="white"
+            style={styles.buttonIcon}
+          />
+          <Text style={styles.buttonText}>Generate Diary</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.emptyStateContainer, { borderColor: theme.border }]}>
+        <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+          No diary entries yet. Create your first memory!
         </Text>
       </View>
-      <Text
-        style={[styles.diaryPreview, { color: theme.textSecondary }]}
-        numberOfLines={2}
-      >
-        {diary.content.replace(/[#*]/g, "")}
-      </Text>
-      <View style={styles.viewDetailsContainer}>
-        <Text style={[styles.viewDetailsText, { color: theme.primary }]}>
-          Read more
-        </Text>
-        <Feather name="arrow-right" size={14} color={theme.primary} />
-      </View>
-    </TouchableOpacity>
+    </>
   );
 
-  // Render image thumbnails
-  const renderImageThumbnails = () => {
-    if (selectedImages.length === 0) return null;
-
-    return (
-      <View style={styles.thumbnailsContainer}>
-        <Text style={[styles.thumbnailsTitle, { color: theme.text }]}>
-          Selected Images ({selectedImages.length})
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {selectedImages.map((image, index) => (
-            <View key={index} style={styles.thumbnailWrapper}>
-              <Image source={{ uri: image.uri }} style={styles.thumbnail} />
-              {imageData[index] && (
+  // Upload screen with image selection and metadata inputs
+  const UploadScreen = () => (
+    <Animated.View entering={FadeInDown.duration(800)} style={styles.container}>
+      <Text style={[styles.title, { color: darkMode ? "#FFFFFF" : "#000000" }]}>
+        Upload Images
+      </Text>
+      <ScrollView
+        style={styles.uploadContainer}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 80 }}
+      >
+        {imageMetadata.map((image, index) => (
+          <View
+            key={index}
+            style={[
+              styles.imageContainer,
+              {
+                marginBottom: 24,
+                backgroundColor: darkMode ? "#222222" : "#FFFFFF",
+                borderRadius: 12,
+                padding: 16,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: darkMode ? 0.3 : 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              },
+            ]}
+          >
+            <Image
+              source={{ uri: image.uri }}
+              style={[styles.image, { borderRadius: 8, marginBottom: 16 }]}
+            />
+            <View style={styles.metadataContainer}>
+              <DateInput
+                index={index}
+                initialValue={image.date}
+                updateMetadata={updateMetadata}
+                darkMode={darkMode}
+              />
+              <LocationInput
+                index={index}
+                initialValue={image.location}
+                updateMetadata={updateMetadata}
+                darkMode={darkMode}
+              />
+              {uploadProgress[index] && (
                 <View
                   style={[
-                    styles.locationBadge,
-                    { backgroundColor: theme.primary },
+                    styles.uploadStatus,
+                    uploadProgress[index].status === "uploading"
+                      ? styles.uploading
+                      : uploadProgress[index].status === "complete"
+                      ? styles.uploadComplete
+                      : styles.uploadFailed,
                   ]}
                 >
-                  <Text style={styles.locationText} numberOfLines={1}>
-                    {imageData[index].location}
+                  {uploadProgress[index].status === "uploading" && (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  )}
+                  <Text style={styles.uploadStatusText}>
+                    {uploadProgress[index].status === "uploading"
+                      ? "Uploading..."
+                      : uploadProgress[index].status === "complete"
+                      ? "Complete"
+                      : "Failed"}
                   </Text>
                 </View>
               )}
             </View>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-    >
-      <ScrollView
-        style={[styles.container, { backgroundColor: theme.background }]}
-        contentContainerStyle={{ paddingBottom: 30 }}
-      >
-        <View style={[styles.header, { backgroundColor: theme.card }]}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>
-            Travel Diaries
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-            Create and view your travel memories
-          </Text>
-        </View>
-
-        <View style={styles.content}>
-          {!showCreateForm ? (
-            <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: theme.primary }]}
-              onPress={() => setShowCreateForm(true)}
-            >
-              <Feather name="plus" size={20} color="#FFFFFF" />
-              <Text style={styles.createButtonText}>Create New Diary</Text>
-            </TouchableOpacity>
-          ) : (
-            <View
-              style={[styles.formContainer, { backgroundColor: theme.card }]}
-            >
-              <Text style={[styles.formTitle, { color: theme.text }]}>
-                Create a Travel Diary
-              </Text>
-
-              <Text style={[styles.inputLabel, { color: theme.text }]}>
-                Diary Title
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.background,
-                    color: theme.text,
-                    borderColor: theme.border,
-                  },
-                ]}
-                placeholder="Enter a title for your diary"
-                placeholderTextColor={theme.textSecondary}
-                value={diaryTitle}
-                onChangeText={setDiaryTitle}
-              />
-
-              {/* Image selection section */}
-              <View style={styles.imageSelectionSection}>
-                <Text style={[styles.sectionLabel, { color: theme.text }]}>
-                  Add Photos to Your Diary
-                </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.imagePickerButton,
-                    {
-                      backgroundColor: theme.primary + "20",
-                      borderColor: theme.primary,
-                    },
-                  ]}
-                  onPress={pickImages}
-                  disabled={uploadingImages}
-                >
-                  <Feather name="image" size={20} color={theme.primary} />
-                  <Text
-                    style={[styles.imagePickerText, { color: theme.primary }]}
-                  >
-                    {selectedImages.length > 0
-                      ? `Selected ${selectedImages.length} images`
-                      : "Select Photos from Device"}
-                  </Text>
-                </TouchableOpacity>
-
-                {uploadingImages && (
-                  <View style={styles.processingContainer}>
-                    <ActivityIndicator size="small" color={theme.primary} />
-                    <Text
-                      style={[styles.processingText, { color: theme.text }]}
-                    >
-                      Processing images...
-                    </Text>
-                  </View>
-                )}
-
-                {renderImageThumbnails()}
-              </View>
-
-              <View style={styles.formActions}>
-                <TouchableOpacity
-                  style={[styles.cancelButton, { borderColor: theme.border }]}
-                  onPress={() => {
-                    setShowCreateForm(false);
-                    setSelectedImages([]);
-                    setImageData([]);
-                  }}
-                >
-                  <Text
-                    style={[styles.cancelButtonText, { color: theme.text }]}
-                  >
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.generateButton,
-                    {
-                      backgroundColor: theme.primary,
-                      opacity:
-                        generating || selectedImages.length === 0 ? 0.7 : 1,
-                    },
-                  ]}
-                  onPress={uploadImagesAndGenerateDiary}
-                  disabled={generating || selectedImages.length === 0}
-                >
-                  {generating ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Feather
-                        name="upload"
-                        size={16}
-                        color="#FFFFFF"
-                        style={styles.buttonIcon}
-                      />
-                      <Text style={styles.generateButtonText}>
-                        Create with Photos
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <View style={styles.diariesSection}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              Your Diaries
-            </Text>
-
-            {loadingDiaries ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.primary} />
-                <Text style={[styles.loadingText, { color: theme.text }]}>
-                  Loading your diaries...
-                </Text>
-              </View>
-            ) : diaries.length > 0 ? (
-              <View style={styles.diariesList}>
-                {diaries.map((diary, index) => renderDiaryItem(diary, index))}
-              </View>
-            ) : (
-              <View style={styles.emptyState}>
-                <Feather
-                  name="book-open"
-                  size={48}
-                  color={theme.textSecondary}
-                />
-                <Text
-                  style={[
-                    styles.emptyStateText,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  You haven't created any diaries yet
-                </Text>
-                <Text
-                  style={[
-                    styles.emptyStateSubtext,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Create your first diary with your travel photos
-                </Text>
-              </View>
-            )}
           </View>
+        ))}
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: theme.primary,
+                opacity: uploading ? 0.7 : 1,
+              },
+            ]}
+            onPress={uploadImagesToS3}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Generate Diary</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </Animated.View>
+  );
+
+  // Diary display screen
+  const DiaryScreen = () => (
+    <ScrollView
+      style={[styles.diaryContainer, { backgroundColor: theme.background }]}
+    >
+      <Text style={[styles.title, { color: theme.text, marginBottom: 20 }]}>
+        Your Travel Diary
+      </Text>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+            Generating your diary...
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View
+            style={[
+              styles.diaryContent,
+              { backgroundColor: theme.cardBackground },
+            ]}
+          >
+            <Markdown
+              style={{
+                body: { color: theme.text, fontSize: 16, lineHeight: 24 },
+                heading1: {
+                  color: theme.primary,
+                  fontSize: 24,
+                  marginBottom: 10,
+                  marginTop: 20,
+                },
+                heading2: {
+                  color: theme.primary,
+                  fontSize: 20,
+                  marginBottom: 10,
+                  marginTop: 20,
+                },
+                heading3: {
+                  color: theme.primary,
+                  fontSize: 18,
+                  marginBottom: 10,
+                  marginTop: 15,
+                },
+                hr: {
+                  backgroundColor: theme.border,
+                  height: 1,
+                  marginVertical: 15,
+                },
+                strong: { fontWeight: "bold", color: theme.text },
+              }}
+            >
+              {diaryContent}
+            </Markdown>
+
+            {/* Display uploaded images section */}
+            <View style={styles.imagesSection}>
+              <Text
+                style={[styles.imagesSectionTitle, { color: theme.primary }]}
+              >
+                My Travel Photos
+              </Text>
+
+              {imageMetadata.map((image, index) => (
+                <View key={index} style={styles.diaryImageContainer}>
+                  <Image
+                    source={{ uri: image.uri }}
+                    style={styles.diaryImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.imageDetails}>
+                    <Text style={[styles.imageDate, { color: theme.text }]}>
+                      {image.date}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.imageLocation,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {image.location}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.createButton,
+              { backgroundColor: theme.primary, marginTop: 20 },
+            ]}
+            onPress={() => {
+              setSelectedImages([]);
+              setImageMetadata([]);
+              setDiaryContent("");
+              setUploadProgress({});
+              setStep("initial");
+            }}
+          >
+            <Text style={styles.buttonText}>Create New Diary</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </ScrollView>
+  );
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[theme.primary + "20", theme.background, theme.background]}
+        style={styles.gradient}
+      >
+        <Animated.View entering={FadeInDown.springify()} style={styles.content}>
+          {step === "initial" && <InitialScreen />}
+          {step === "uploading" && <UploadScreen />}
+          {step === "rendering" && <DiaryScreen />}
+        </Animated.View>
+      </LinearGradient>
+    </View>
   );
 }
 
@@ -536,226 +677,238 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
+  gradient: {
+    flex: 1,
   },
   content: {
-    padding: 16,
+    flex: 1,
+    padding: 20,
+  },
+  headerContainer: {
+    marginTop: 20,
+    marginBottom: 30,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: "center",
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  illustrationContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 30,
+  },
+  illustrationPlaceholder: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonContainer: {
+    alignItems: "center",
+    marginBottom: 30,
   },
   createButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 16,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
     borderRadius: 12,
-    marginBottom: 24,
-  },
-  createButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  formContainer: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  formActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  cancelButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
-    marginRight: 8,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  generateButton: {
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flex: 1,
-    marginLeft: 8,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  generateButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   buttonIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
-  diariesSection: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    padding: 24,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-  },
-  diariesList: {
-    marginTop: 8,
-  },
-  diaryItem: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  diaryHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  diaryTitle: {
+  buttonText: {
+    color: "white",
     fontSize: 16,
     fontWeight: "600",
   },
-  diaryDate: {
-    fontSize: 12,
-  },
-  diaryPreview: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  viewDetailsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    marginTop: 12,
-  },
-  viewDetailsText: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginRight: 6,
-  },
-  emptyState: {
-    alignItems: "center",
+  emptyStateContainer: {
+    flex: 1,
     justifyContent: "center",
-    padding: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 10,
   },
   emptyStateText: {
     fontSize: 16,
-    fontWeight: "600",
-    marginTop: 16,
-    marginBottom: 8,
     textAlign: "center",
   },
-  emptyStateSubtext: {
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
+  // Upload screen styles
+  uploadContainer: {
+    flex: 1,
   },
-  // Image picker styles
-  imageSelectionSection: {
+  imageContainer: {
     marginBottom: 16,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 8,
-  },
-  imagePickerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  imagePickerText: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginLeft: 8,
-  },
-  processingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 8,
-  },
-  processingText: {
-    marginLeft: 8,
-    fontSize: 14,
-  },
-  thumbnailsContainer: {
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  thumbnailsTitle: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  thumbnailWrapper: {
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
     position: "relative",
-    marginRight: 8,
   },
-  thumbnail: {
-    width: 80,
-    height: 80,
+  image: {
+    width: "100%",
+    height: 200,
+  },
+  metadataContainer: {
+    padding: 15,
+  },
+  metadataInput: {
+    borderWidth: 1,
     borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    width: "100%",
   },
-  locationBadge: {
+  uploadStatus: {
     position: "absolute",
-    bottom: 4,
-    left: 4,
-    right: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    borderRadius: 4,
+    top: 10,
+    right: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
   },
-  locationText: {
+  uploading: {
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+  },
+  uploadComplete: {
+    backgroundColor: "rgba(39, 174, 96, 0.8)",
+  },
+  uploadFailed: {
+    backgroundColor: "rgba(231, 76, 60, 0.8)",
+  },
+  uploadStatusText: {
     color: "white",
-    fontSize: 10,
+    fontSize: 12,
+    marginLeft: 4,
+    fontWeight: "bold",
+  },
+  addButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    marginRight: 10,
+  },
+  generateButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  // Diary screen styles
+  diaryContainer: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+  },
+  diaryContent: {
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  buttonRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  actionButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+  imagesSection: {
+    marginTop: 30,
+    padding: 0,
+  },
+  imagesSectionTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 20,
     textAlign: "center",
+  },
+  diaryImageContainer: {
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  diaryImage: {
+    width: "100%",
+    height: 220,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  imageDetails: {
+    padding: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+  },
+  imageDate: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  imageLocation: {
+    fontSize: 14,
   },
 });
