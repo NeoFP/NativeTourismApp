@@ -559,21 +559,53 @@ export default function Register() {
 
       {/* Add loading modal with standard loading indicator */}
       <Modal transparent visible={showLoadingModal} animationType="fade">
-        <BlurView
-          intensity={isDark ? 20 : 60}
-          tint={isDark ? "dark" : "light"}
-          style={styles.modalContainer}
-        >
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Animated.Text
-              entering={FadeInDown.springify()}
-              style={[styles.loadingText, { color: theme.text }]}
+        {Platform.OS === "web" ? (
+          <View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: isDark
+                  ? "rgba(0,0,0,0.7)"
+                  : "rgba(255,255,255,0.8)",
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.loadingContainer,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(30,30,30,0.8)"
+                    : "rgba(255,255,255,0.9)",
+                },
+              ]}
             >
-              Creating your account...
-            </Animated.Text>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Animated.Text
+                entering={FadeInDown.springify()}
+                style={[styles.loadingText, { color: theme.text }]}
+              >
+                Creating your account...
+              </Animated.Text>
+            </View>
           </View>
-        </BlurView>
+        ) : (
+          <BlurView
+            intensity={isDark ? 20 : 60}
+            tint={isDark ? "dark" : "light"}
+            style={styles.modalContainer}
+          >
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Animated.Text
+                entering={FadeInDown.springify()}
+                style={[styles.loadingText, { color: theme.text }]}
+              >
+                Creating your account...
+              </Animated.Text>
+            </View>
+          </BlurView>
+        )}
       </Modal>
     </KeyboardAvoidingView>
   );

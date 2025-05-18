@@ -618,56 +618,123 @@ export default function Login() {
       </ScrollView>
 
       <Modal transparent visible={showLoadingModal} animationType="fade">
-        <BlurView
-          intensity={isDark ? 20 : 60}
-          tint={isDark ? "dark" : "light"}
-          style={styles.modalContainer}
-        >
-          <View style={styles.loadingContainer}>
-            <LottieView
-              ref={loadingAnimationRef}
-              source={require("../../assets/animations/travel-loading.json")}
-              autoPlay={false} // We'll control play manually with the ref
-              loop
-              style={styles.lottieAnimation}
-              renderMode="svg"
-              speed={0.8} // Slow down animation slightly
-              onLayout={() => {
-                // Play animation after layout is complete
-                if (loadingAnimationRef.current) {
-                  loadingAnimationRef.current.play();
-                }
-              }}
-            />
-            {welcomeMessage && (
+        {Platform.OS === "web" ? (
+          <View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: isDark
+                  ? "rgba(0,0,0,0.7)"
+                  : "rgba(255,255,255,0.8)",
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.loadingContainer,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(30,30,30,0.8)"
+                    : "rgba(255,255,255,0.9)",
+                },
+              ]}
+            >
+              <LottieView
+                ref={loadingAnimationRef}
+                source={require("../../assets/animations/travel-loading.json")}
+                autoPlay={true}
+                loop
+                style={styles.lottieAnimation}
+                renderMode="svg"
+                speed={0.8}
+              />
+              {welcomeMessage && (
+                <Animated.Text
+                  entering={FadeInUp.springify()}
+                  style={[styles.loadingTitle, { color: theme.text }]}
+                >
+                  {welcomeMessage.title}
+                </Animated.Text>
+              )}
               <Animated.Text
                 entering={FadeInUp.springify()}
-                style={[styles.loadingTitle, { color: theme.text }]}
+                style={[styles.loadingText, { color: theme.text }]}
               >
-                {welcomeMessage.title}
+                {welcomeMessage ? welcomeMessage.message : "Signing you in..."}
               </Animated.Text>
-            )}
-            <Animated.Text
-              entering={FadeInUp.springify()}
-              style={[styles.loadingText, { color: theme.text }]}
-            >
-              {welcomeMessage ? welcomeMessage.message : "Signing you in..."}
-            </Animated.Text>
-            {welcomeMessage && (
-              <View style={styles.featuresContainer}>
-                {welcomeMessage.features.map((feature, index) => (
-                  <Animated.Text
-                    key={index}
-                    entering={FadeInUp.springify().delay(200 * index)}
-                    style={[styles.featureText, { color: theme.textSecondary }]}
-                  >
-                    • {feature}
-                  </Animated.Text>
-                ))}
-              </View>
-            )}
+              {welcomeMessage && (
+                <View style={styles.featuresContainer}>
+                  {welcomeMessage.features.map((feature, index) => (
+                    <Animated.Text
+                      key={index}
+                      entering={FadeInUp.springify().delay(200 * index)}
+                      style={[
+                        styles.featureText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      • {feature}
+                    </Animated.Text>
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
-        </BlurView>
+        ) : (
+          <BlurView
+            intensity={isDark ? 20 : 60}
+            tint={isDark ? "dark" : "light"}
+            style={styles.modalContainer}
+          >
+            <View style={styles.loadingContainer}>
+              <LottieView
+                ref={loadingAnimationRef}
+                source={require("../../assets/animations/travel-loading.json")}
+                autoPlay={false} // We'll control play manually with the ref
+                loop
+                style={styles.lottieAnimation}
+                renderMode="svg"
+                speed={0.8} // Slow down animation slightly
+                onLayout={() => {
+                  // Play animation after layout is complete
+                  if (loadingAnimationRef.current) {
+                    loadingAnimationRef.current.play();
+                  }
+                }}
+              />
+              {welcomeMessage && (
+                <Animated.Text
+                  entering={FadeInUp.springify()}
+                  style={[styles.loadingTitle, { color: theme.text }]}
+                >
+                  {welcomeMessage.title}
+                </Animated.Text>
+              )}
+              <Animated.Text
+                entering={FadeInUp.springify()}
+                style={[styles.loadingText, { color: theme.text }]}
+              >
+                {welcomeMessage ? welcomeMessage.message : "Signing you in..."}
+              </Animated.Text>
+              {welcomeMessage && (
+                <View style={styles.featuresContainer}>
+                  {welcomeMessage.features.map((feature, index) => (
+                    <Animated.Text
+                      key={index}
+                      entering={FadeInUp.springify().delay(200 * index)}
+                      style={[
+                        styles.featureText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      • {feature}
+                    </Animated.Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          </BlurView>
+        )}
       </Modal>
     </KeyboardAvoidingView>
   );
