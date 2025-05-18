@@ -98,6 +98,10 @@ export default function Issues() {
       const encodedHotelName = encodeURIComponent(hotel.trim());
       console.log("Fetching issues for hotel:", hotel);
 
+      // Get hotel ID from AsyncStorage
+      const hotelId = await AsyncStorage.getItem("userId");
+      console.log("Using hotel ID:", hotelId);
+
       let data;
 
       // Handle web platform differently due to CORS
@@ -107,7 +111,7 @@ export default function Issues() {
         try {
           // Direct approach first - this might work if CORS is configured on the server
           const directResponse = await fetch(
-            `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`,
+            `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}&_id=${hotelId}`,
             {
               method: "GET",
               headers: {
@@ -123,10 +127,12 @@ export default function Issues() {
             throw new Error("Direct fetch failed");
           }
         } catch (directError) {
+          console.log("Direct fetch failed:", directError.message);
+
           try {
             // Try with axios
             const axiosResponse = await axios.get(
-              `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`
+              `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}&_id=${hotelId}`
             );
 
             if (axiosResponse.status === 200) {
@@ -145,7 +151,7 @@ export default function Issues() {
       } else {
         // Native platforms don't have CORS issues
         const response = await fetch(
-          `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`
+          `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}&_id=${hotelId}`
         );
 
         if (!response.ok) {
@@ -159,13 +165,12 @@ export default function Issues() {
       }
 
       // Ensure the data has the expected structure
-      if (!data || !data.Issues) {
-        image.png;
+      if (!data || !data.solutions || !data.solutions.Issues) {
         throw new Error("Invalid data format received from API");
       }
 
       // Transform the issues data to match our component's expected format
-      const formattedIssues = data.Issues.map((issue, index) => ({
+      const formattedIssues = data.solutions.Issues.map((issue, index) => ({
         id: (index + 1).toString(),
         title: issue,
         status: "pending",

@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  FlatList,
 } from "react-native";
 import { useTheme } from "../../utils/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,6 +21,8 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import Markdown from "react-native-markdown-display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import { getUserDiaries } from "../../utils/mongodb";
 
 // Import the required polyfills first - important order!
 import "react-native-get-random-values";
@@ -190,15 +193,88 @@ export default function Diary() {
   const [loading, setLoading] = useState(false);
   const [diaryContent, setDiaryContent] = useState("");
   const [userId, setUserId] = useState(null);
+  const [diaries, setDiaries] = useState([]);
+  const [loadingDiaries, setLoadingDiaries] = useState(false);
+  const [showPreviousDiaries, setShowPreviousDiaries] = useState(false);
 
-  // Load user ID on component mount
+  // Load user ID and diaries on component mount
   useEffect(() => {
-    const loadUserId = async () => {
+    const loadUserData = async () => {
       const id = await getUserId();
       setUserId(id);
+      fetchUserDiaries();
     };
-    loadUserId();
+    loadUserData();
   }, []);
+
+  // Function to fetch user diaries
+  const fetchUserDiaries = async () => {
+    try {
+      setLoadingDiaries(true);
+      const userDiaries = await getUserDiaries();
+      if (userDiaries && userDiaries.diaries) {
+        setDiaries(userDiaries.diaries);
+      }
+    } catch (error) {
+      console.error("Error fetching user diaries:", error);
+    } finally {
+      setLoadingDiaries(false);
+    }
+  };
+
+  // Function to render individual diary item
+  const renderDiaryItem = ({ item }) => {
+    // Extract the first location from images if available
+    const firstLocation =
+      item.images && item.images.length > 0
+        ? item.images[0].location
+        : "Unknown Location";
+
+    // Extract the first date from images if available
+    const firstDate =
+      item.images && item.images.length > 0
+        ? item.images[0].date
+        : new Date(item.created_at).toLocaleDateString();
+
+    // Get the first few words of content for preview
+    const contentPreview =
+      item.content
+        .replace(/\*\*/g, "") // Remove markdown formatting
+        .split(" ")
+        .slice(0, 15)
+        .join(" ") + "...";
+
+    return (
+      <TouchableOpacity
+        style={[styles.diaryItem, { backgroundColor: theme.cardBackground }]}
+        onPress={() => router.push(`/(user)/diaryDetails?diaryId=${item._id}`)}
+      >
+        <View style={styles.diaryHeader}>
+          <Text style={[styles.diaryTitle, { color: theme.text }]}>
+            {firstLocation}
+          </Text>
+          <Text style={[styles.diaryDate, { color: theme.textSecondary }]}>
+            {firstDate}
+          </Text>
+        </View>
+        <Text style={[styles.diaryPreview, { color: theme.textSecondary }]}>
+          {contentPreview}
+        </Text>
+        <View style={styles.diaryImageCountContainer}>
+          <Feather name="image" size={14} color={theme.primary} />
+          <Text style={[styles.diaryImageCount, { color: theme.primary }]}>
+            {item.images ? item.images.length : 0} photos
+          </Text>
+        </View>
+        <View style={styles.viewDetailsContainer}>
+          <Text style={[styles.viewDetailsText, { color: theme.primary }]}>
+            View diary
+          </Text>
+          <Feather name="arrow-right" size={14} color={theme.primary} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   // Initialize empty state for image selection
   useEffect(() => {
@@ -398,6 +474,9 @@ export default function Diary() {
       setDiaryContent(response.data.diary_content);
       setStep("rendering");
       setLoading(false);
+
+      // Refresh the diaries list after creating a new diary
+      fetchUserDiaries();
     } catch (error) {
       console.log("Error creating diary:", error);
       setLoading(false);
@@ -444,11 +523,91 @@ export default function Diary() {
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.emptyStateContainer, { borderColor: theme.border }]}>
-        <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-          No diary entries yet. Create your first memory!
-        </Text>
-      </View>
+      {loadingDiaries ? (
+        <View style={styles.loadingDiariesContainer}>
+          <ActivityIndicator size="small" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+            Loading your diaries...
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View style={styles.previousDiariesHeader}>
+            <TouchableOpacity
+              style={[
+                styles.previousDiariesToggle,
+                { borderColor: theme.border },
+              ]}
+              onPress={() => setShowPreviousDiaries(!showPreviousDiaries)}
+            >
+              <Text style={[styles.toggleText, { color: theme.primary }]}>
+                {showPreviousDiaries
+                  ? "Hide Previous Diaries"
+                  : "View Previous Diaries"}
+              </Text>
+              <Feather
+                name={showPreviousDiaries ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={theme.primary}
+              />
+            </TouchableOpacity>
+
+            {showPreviousDiaries && (
+              <TouchableOpacity
+                style={[styles.refreshButton, { borderColor: theme.primary }]}
+                onPress={fetchUserDiaries}
+              >
+                <Feather name="refresh-cw" size={20} color={theme.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {showPreviousDiaries && (
+            <View style={styles.previousDiariesContainer}>
+              {diaries.length > 0 ? (
+                <FlatList
+                  data={diaries}
+                  renderItem={renderDiaryItem}
+                  keyExtractor={(item) => `diary-${item._id}`}
+                  scrollEnabled={true}
+                  style={{ maxHeight: 400 }}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.emptyStateContainer,
+                    { borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.emptyStateText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    No diary entries yet. Create your first memory!
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {!showPreviousDiaries && diaries.length === 0 && (
+            <View
+              style={[
+                styles.emptyStateContainer,
+                { borderColor: theme.border },
+              ]}
+            >
+              <Text
+                style={[styles.emptyStateText, { color: theme.textSecondary }]}
+              >
+                No diary entries yet. Create your first memory!
+              </Text>
+            </View>
+          )}
+        </>
+      )}
     </>
   );
 
@@ -715,7 +874,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 15,
   },
   createButton: {
     flexDirection: "row",
@@ -910,5 +1069,90 @@ const styles = StyleSheet.create({
   },
   imageLocation: {
     fontSize: 14,
+  },
+  // New styles for previous diaries section
+  previousDiariesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  previousDiariesToggle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    flex: 1,
+    marginRight: 8,
+  },
+  toggleText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  previousDiariesContainer: {
+    marginBottom: 20,
+  },
+  loadingDiariesContainer: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  diaryItem: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  diaryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  diaryTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  diaryDate: {
+    fontSize: 14,
+  },
+  diaryPreview: {
+    fontSize: 14,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  diaryImageCountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  diaryImageCount: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  viewDetailsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  viewDetailsText: {
+    fontSize: 14,
+    marginRight: 4,
+    fontWeight: "500",
+  },
+  refreshButton: {
+    padding: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    width: 40,
+    height: 40,
   },
 });

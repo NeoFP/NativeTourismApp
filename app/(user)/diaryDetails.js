@@ -117,48 +117,6 @@ export default function DiaryDetails() {
           <Feather name="arrow-left" size={20} color={theme.text} />
         </TouchableOpacity>
 
-        {/* Images gallery */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.imagesContainer}
-        >
-          {diary.images && diary.images.length > 0 ? (
-            diary.images.map((image, index) => (
-              <View key={index} style={styles.imageWrapper}>
-                <Image
-                  source={{ uri: getImageUrl(image.image_path) }}
-                  style={styles.image}
-                  resizeMode="cover"
-                />
-                <View
-                  style={[
-                    styles.imageOverlay,
-                    { backgroundColor: "rgba(0,0,0,0.3)" },
-                  ]}
-                >
-                  <Text style={styles.imageLocation}>{image.location}</Text>
-                  <Text style={styles.imageDate}>{image.date}</Text>
-                </View>
-              </View>
-            ))
-          ) : (
-            <View
-              style={[
-                styles.noImageContainer,
-                { backgroundColor: theme.cardAlt },
-              ]}
-            >
-              <Feather name="image" size={40} color={theme.textSecondary} />
-              <Text
-                style={[styles.noImageText, { color: theme.textSecondary }]}
-              >
-                No images available
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
         {/* Diary content */}
         <View
           style={[styles.contentContainer, { backgroundColor: theme.card }]}
@@ -237,6 +195,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+    paddingTop: 60, // Add more top padding to avoid overlap with back button
   },
   backButtonSmall: {
     position: "absolute",
@@ -298,7 +257,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   contentContainer: {
-    marginTop: 16,
+    marginTop: 0,
     padding: 20,
     borderRadius: 16,
   },

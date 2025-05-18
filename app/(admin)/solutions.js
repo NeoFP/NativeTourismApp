@@ -97,10 +97,15 @@ export default function Solutions() {
       }
 
       const encodedHotelName = encodeURIComponent(hotel.trim());
+
+      // Get hotel ID from AsyncStorage
+      const hotelId = await AsyncStorage.getItem("userId");
+      console.log("Using hotel ID:", hotelId);
+
       console.log("Fetching solutions for hotel:", hotel);
       console.log(
         "API URL:",
-        `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`
+        `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}&_id=${hotelId}`
       );
 
       let data;
@@ -113,7 +118,7 @@ export default function Solutions() {
           // Direct approach first - this might work if CORS is configured on the server
           console.log("Trying direct fetch first...");
           const directResponse = await fetch(
-            `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`,
+            `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}&_id=${hotelId}`,
             {
               method: "GET",
               headers: {
@@ -136,7 +141,7 @@ export default function Solutions() {
             // Try with axios
             console.log("Trying with axios for solutions...");
             const axiosResponse = await axios.get(
-              `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`
+              `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}&_id=${hotelId}`
             );
 
             if (axiosResponse.status === 200) {
@@ -153,30 +158,36 @@ export default function Solutions() {
             // For web testing, use mock data that matches the expected API response
             console.log("Using mock data for web testing due to CORS issues");
             data = {
-              Issues: [
-                "Cleanliness and sanitation issues in rooms and common areas",
-                "Poor breakfast quality and limited options",
-                "Outdated and uncomfortable facilities and furniture",
-                "Pet-related concerns and lack of pet-free rooms",
-                "Poor customer service and slow front desk operations",
-                "Maintenance issues such as plumbing, electrical, and structural problems",
-                "Noise disturbances due to thin walls and lack of soundproofing",
-                "Misleading pricing and promotional practices",
-                "Lack of air conditioning and basic room amenities",
-                "Inadequate communication about construction and renovations",
-              ],
-              Solutions: [
-                "Improve housekeeping standards to ensure rooms are clean, dust-free, and well-maintained.",
-                "Upgrade breakfast offerings to include a wider variety of fresh, high-quality options served on proper dishware.",
-                "Implement a clear pet policy and offer pet-free rooms for guests with allergies or preferences.",
-                "Renovate outdated facilities, including furniture, bathrooms, and common areas, to enhance guest comfort.",
-                "Enhance customer service training for front desk staff to improve efficiency and friendliness.",
-                "Ensure all rooms are equipped with basic amenities such as air conditioning, refrigerators, and functioning appliances.",
-                "Address and rectify maintenance issues promptly, including plumbing, electrical, and structural concerns.",
-                "Provide clear communication about ongoing construction or renovations on the hotel's website and at booking.",
-                "Implement soundproofing measures to reduce noise disturbances between rooms.",
-                "Offer transparent pricing and promotions to avoid misunderstandings and ensure guest satisfaction.",
-              ],
+              solutions: {
+                Issues: [
+                  "Cleanliness and sanitation issues in rooms and common areas",
+                  "Poor breakfast quality and limited options",
+                  "Outdated and uncomfortable facilities and furniture",
+                  "Pet-related concerns and lack of pet-free rooms",
+                  "Poor customer service and slow front desk operations",
+                  "Maintenance issues such as plumbing, electrical, and structural problems",
+                  "Noise disturbances due to thin walls and lack of soundproofing",
+                  "Misleading pricing and promotional practices",
+                  "Lack of air conditioning and basic room amenities",
+                  "Inadequate communication about construction and renovations",
+                ],
+                Solutions: [
+                  "Improve housekeeping standards to ensure rooms are clean, dust-free, and well-maintained.",
+                  "Upgrade breakfast offerings to include a wider variety of fresh, high-quality options served on proper dishware.",
+                  "Implement a clear pet policy and offer pet-free rooms for guests with allergies or preferences.",
+                  "Renovate outdated facilities, including furniture, bathrooms, and common areas, to enhance guest comfort.",
+                  "Enhance customer service training for front desk staff to improve efficiency and friendliness.",
+                  "Ensure all rooms are equipped with basic amenities such as air conditioning, refrigerators, and functioning appliances.",
+                  "Address and rectify maintenance issues promptly, including plumbing, electrical, and structural concerns.",
+                  "Provide clear communication about ongoing construction or renovations on the hotel's website and at booking.",
+                  "Implement soundproofing measures to reduce noise disturbances between rooms.",
+                  "Offer transparent pricing and promotions to avoid misunderstandings and ensure guest satisfaction.",
+                ],
+              },
+              hotel_id: hotelId || "unknown",
+              hotel_name: hotel,
+              message: "Mock solutions generated for testing",
+              solution_id: "mock-solution-id",
             };
           }
         }
@@ -186,7 +197,7 @@ export default function Solutions() {
           "Running on native platform, using standard fetch for solutions"
         );
         const response = await fetch(
-          `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}`
+          `${API_URL}/generate_solutions?hotel_name=${encodedHotelName}&_id=${hotelId}`
         );
 
         if (!response.ok) {
@@ -204,77 +215,45 @@ export default function Solutions() {
       // Store the raw API response for debugging
       setRawApiResponse(data);
 
-      // Ensure the data has the expected structure
-      if (!data || !data.Solutions || !data.Issues) {
+      // Check if the API response has the expected structure
+      if (!data.solutions || !data.solutions.Solutions) {
         throw new Error("Invalid data format received from API");
       }
 
-      // Transform the solutions data to match our component's expected format
-      // Don't limit or truncate any data
-      const formattedSolutions = data.Solutions.map((solution, index) => ({
-        id: (index + 1).toString(),
-        issue: data.Issues[index] || "General issue", // Match with corresponding issue or use default
-        solution: solution,
-        date: new Date().toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-      }));
+      // Format the solutions data for the FlatList
+      const formattedSolutions = data.solutions.Solutions.map(
+        (solution, index) => ({
+          id: (index + 1).toString(),
+          text: solution,
+          issue: data.solutions.Issues[index] || "Unknown issue",
+        })
+      );
 
       setSolutions(formattedSolutions);
     } catch (error) {
       console.error("Error fetching solutions:", error);
       setError(`Failed to load solutions: ${error.message}`);
 
-      // Use mock data as fallback
-      const mockData = [
-        {
-          id: "1",
-          issue: "Poor Wi-Fi connectivity",
-          solution: "Upgrade router firmware and add more access points",
-          date: "Mar 15, 2024",
-        },
-        {
-          id: "2",
-          issue: "Lack of vegetarian food options",
-          solution:
-            "Introduce new vegetarian menu items and clearly label them",
-          date: "Mar 10, 2024",
-        },
-        {
-          id: "3",
-          issue: "Insufficient parking space",
-          solution: "Implement valet parking service during peak hours",
-          date: "Mar 20, 2024",
-        },
-        {
-          id: "4",
-          issue: "Noisy air conditioning",
-          solution: "Schedule regular maintenance and replace old units",
-          date: "Mar 25, 2024",
-        },
-        {
-          id: "5",
-          issue: "Long check-in process",
-          solution:
-            "Implement mobile check-in and increase staff during peak hours",
-          date: "Mar 05, 2024",
-        },
-      ];
-
+      // Use mock data for demonstration when API fails
+      const mockData = generateMockSolutions();
       setSolutions(mockData);
 
       // Create a mock API response for debugging
       setRawApiResponse({
-        Issues: [
-          "Poor Wi-Fi connectivity",
-          "Lack of vegetarian food options",
-          "Insufficient parking space",
-          "Noisy air conditioning",
-          "Long check-in process",
-        ],
-        Solutions: mockData.map((item) => item.solution),
+        solutions: {
+          Issues: [
+            "Poor Wi-Fi connectivity",
+            "Lack of vegetarian food options",
+            "Insufficient parking space",
+            "Noisy air conditioning",
+            "Long check-in process",
+          ],
+          Solutions: mockData.map((item) => item.text),
+        },
+        hotel_id: "mock-id",
+        hotel_name: hotel,
+        message: "Mock data generated due to API error",
+        solution_id: "mock-solution-id",
       });
     } finally {
       setLoading(false);
@@ -422,43 +401,54 @@ export default function Solutions() {
     },
   });
 
-  const renderItem = ({ item, index }) => (
-    <Animated.View
-      entering={FadeInLeft.duration(400).delay(index * 100)}
-      style={styles.cardContainer}
-    >
-      <BlurView
-        intensity={isDark ? 20 : 60}
-        tint={isDark ? "dark" : "light"}
-        style={styles.blurContainer}
+  const renderItem = ({ item, index }) => {
+    // Format current date for display if none exists
+    const formattedDate =
+      item.date ||
+      new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+
+    return (
+      <Animated.View
+        entering={FadeInLeft.duration(400).delay(index * 100)}
+        style={styles.cardContainer}
       >
-        <LinearGradient
-          colors={[
-            isDark ? "rgba(99, 102, 241, 0.1)" : "rgba(99, 102, 241, 0.05)",
-            isDark ? "rgba(99, 102, 241, 0.05)" : "rgba(99, 102, 241, 0.02)",
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.solutionItem}
+        <BlurView
+          intensity={isDark ? 20 : 60}
+          tint={isDark ? "dark" : "light"}
+          style={styles.blurContainer}
         >
-          <View style={styles.solutionContent}>
-            <View style={styles.header}>
-              <View style={styles.iconContainer}>
-                <Feather name="zap" size={24} color={theme.primary} />
+          <LinearGradient
+            colors={[
+              isDark ? "rgba(99, 102, 241, 0.1)" : "rgba(99, 102, 241, 0.05)",
+              isDark ? "rgba(99, 102, 241, 0.05)" : "rgba(99, 102, 241, 0.02)",
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.solutionItem}
+          >
+            <View style={styles.solutionContent}>
+              <View style={styles.header}>
+                <View style={styles.iconContainer}>
+                  <Feather name="zap" size={24} color={theme.primary} />
+                </View>
+                <View style={styles.textContainer}>
+                  <Text style={styles.issueTitle}>{item.issue}</Text>
+                  <Text style={styles.date}>{formattedDate}</Text>
+                </View>
               </View>
-              <View style={styles.textContainer}>
-                <Text style={styles.issueTitle}>{item.issue}</Text>
-                <Text style={styles.date}>{item.date}</Text>
-              </View>
+              <Text style={styles.solutionText} numberOfLines={null}>
+                {item.text}
+              </Text>
             </View>
-            <Text style={styles.solutionText} numberOfLines={null}>
-              {item.solution}
-            </Text>
-          </View>
-        </LinearGradient>
-      </BlurView>
-    </Animated.View>
-  );
+          </LinearGradient>
+        </BlurView>
+      </Animated.View>
+    );
+  };
 
   const renderDebugSection = () => {
     if (!showDebug) return null;
@@ -475,6 +465,42 @@ export default function Solutions() {
         </ScrollView>
       </View>
     );
+  };
+
+  // Function to generate mock solutions for testing
+  const generateMockSolutions = () => {
+    return [
+      {
+        id: "1",
+        issue: "Poor Wi-Fi connectivity",
+        text: "Upgrade router firmware and add more access points",
+        date: "Mar 15, 2024",
+      },
+      {
+        id: "2",
+        issue: "Lack of vegetarian food options",
+        text: "Introduce new vegetarian menu items and clearly label them",
+        date: "Mar 10, 2024",
+      },
+      {
+        id: "3",
+        issue: "Insufficient parking space",
+        text: "Implement valet parking service during peak hours",
+        date: "Mar 20, 2024",
+      },
+      {
+        id: "4",
+        issue: "Noisy air conditioning",
+        text: "Schedule regular maintenance and replace old units",
+        date: "Mar 25, 2024",
+      },
+      {
+        id: "5",
+        issue: "Long check-in process",
+        text: "Implement mobile check-in and increase staff during peak hours",
+        date: "Mar 05, 2024",
+      },
+    ];
   };
 
   if (loading) {
