@@ -51,7 +51,7 @@ export default function DiaryScreen() {
       }
 
       const response = await fetch(
-        `${API_URL}/get_user_diaries?userId=${encodeURIComponent(userId)}`,
+        `${API_URL}/get_user_diaries/${encodeURIComponent(userId)}`,
         {
           method: "GET",
           headers: {
