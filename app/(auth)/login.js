@@ -232,7 +232,7 @@ export default function Login() {
 
       setRole(type || loginType);
       setWelcomeMessage({
-        title: "Welcome to TravelEase",
+        title: "Welcome toTourMe",
         message: "Your gateway to seamless travel experiences",
         features: ["Experience the future of travel management"],
       });
@@ -397,7 +397,7 @@ export default function Login() {
                 entering={SlideInRight.duration(800).delay(600)}
                 style={[styles.title, { color: theme.text }]}
               >
-                TravelEase
+                TourMe
               </Animated.Text>
               <Animated.Text
                 entering={FadeInRight.duration(800).delay(800)}

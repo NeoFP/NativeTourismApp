@@ -10,6 +10,7 @@ import { useTheme } from "../../utils/ThemeContext";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import WriteReviewButton from "../components/WriteReviewButton";
 
 export default function HomeTab() {
   const { theme } = useTheme();
@@ -43,6 +44,16 @@ export default function HomeTab() {
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           Discover the beauty of Sri Lanka
         </Text>
+      </Animated.View>
+
+      <Animated.View
+        entering={FadeInDown.springify().delay(150)}
+        style={styles.reviewButtonContainer}
+      >
+        <WriteReviewButton
+          buttonText="Write a Review"
+          style={{ marginHorizontal: 16 }}
+        />
       </Animated.View>
 
       <Animated.View
@@ -182,5 +193,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "white",
     fontWeight: "600",
+  },
+  reviewButtonContainer: {
+    marginBottom: 16,
   },
 });

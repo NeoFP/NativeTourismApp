@@ -10,12 +10,11 @@ import { useState, useEffect } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import reviewsData from "../../data/reviewsData";
-import ReviewForm from "../components/ReviewForm";
+import WriteReviewButton from "../components/WriteReviewButton";
 
 export default function UserDashboard() {
   const { theme } = useTheme();
   const [randomReviews, setRandomReviews] = useState([]);
-  const [showReviewForm, setShowReviewForm] = useState(false);
 
   useEffect(() => {
     // Get random reviews
@@ -53,6 +52,13 @@ export default function UserDashboard() {
           {review.Location_Type}
         </Text>
       </View>
+      <WriteReviewButton
+        placeName={review.Location_Name}
+        placeType={review.Location_Type}
+        buttonText="Review this place"
+        size="small"
+        style={{ marginTop: 12 }}
+      />
     </Animated.View>
   );
 
@@ -66,18 +72,7 @@ export default function UserDashboard() {
           Discover what travelers are saying!
         </Text>
 
-        <TouchableOpacity
-          style={[styles.writeReviewButton, { backgroundColor: theme.primary }]}
-          onPress={() => setShowReviewForm(true)}
-        >
-          <Feather
-            name="edit"
-            size={18}
-            color="#FFF"
-            style={styles.buttonIcon}
-          />
-          <Text style={styles.writeReviewButtonText}>Write a Review</Text>
-        </TouchableOpacity>
+        <WriteReviewButton theme={theme} />
       </View>
 
       <ScrollView
@@ -89,12 +84,6 @@ export default function UserDashboard() {
           <ReviewCard key={index} review={review} />
         ))}
       </ScrollView>
-
-      <ReviewForm
-        visible={showReviewForm}
-        onClose={() => setShowReviewForm(false)}
-        theme={theme}
-      />
     </View>
   );
 }
